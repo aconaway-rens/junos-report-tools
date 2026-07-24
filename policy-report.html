@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security Policy Report</title>
+<style>
+  :root{
+    --ground:#131a21;
+    --panel:#1b242d;
+    --panel-2:#212d38;
+    --rule:#2c3945;
+    --rule-soft:#243039;
+    --ink:#dfe7ec;
+    --ink-dim:#8296a5;
+    --ink-faint:#5e7182;
+    --in:#4fc3d9;
+    --out:#e0a253;
+    --alert:#e0645f;
+    --ok:#6fb98a;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1220px;margin:0 auto;padding:28px 22px 80px}
+
+  .masthead{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--rule)}
+  .masthead h1{font-family:var(--mono);font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0}
+  .cmd{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);border:1px solid var(--rule);border-radius:3px;padding:2px 7px}
+  .masthead .spacer{flex:1}
+  .privacy{font-size:12px;color:var(--ink-faint)}
+  .eyebrow{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+
+  .panes{display:grid;grid-template-columns:1.3fr .9fr;gap:16px;margin-top:22px}
+  .pane{display:flex;flex-direction:column}
+  .pane-head{display:flex;align-items:baseline;gap:9px;margin-bottom:6px}
+  .pane-head .state{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+  .pane-head .state.ok{color:var(--ok)}
+  textarea{width:100%;min-height:180px;resize:vertical;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:5px;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 13px}
+  textarea::placeholder{color:var(--ink-faint)}
+  textarea:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--in);outline-offset:2px}
+
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+  button{font-family:var(--sans);font-size:13px;background:var(--panel-2);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:7px 13px;cursor:pointer}
+  button:hover{border-color:var(--ink-faint)}
+  button.primary{background:var(--in);color:#0d1418;border-color:var(--in);font-weight:600}
+  button.primary:hover{filter:brightness(1.09)}
+  button.ghost{background:transparent}
+  .controls .spacer{flex:1}
+
+  .toolbar{display:none;gap:9px;margin-top:18px;flex-wrap:wrap;align-items:center}
+  .toolbar.on{display:flex}
+  input[type=search]{flex:1;min-width:190px;background:var(--panel);border:1px solid var(--rule);border-radius:4px;color:var(--ink);font-family:var(--mono);font-size:13px;padding:7px 11px}
+  input[type=search]::placeholder{color:var(--ink-faint)}
+
+  .summary{display:none;margin-top:24px;border:1px solid var(--rule);border-radius:5px;background:var(--panel);padding:15px 17px}
+  .summary.on{display:block}
+  .stats{display:flex;flex-wrap:wrap;gap:26px 40px}
+  .stat .n{font-family:var(--mono);font-size:25px;line-height:1.1;letter-spacing:-.02em}
+  .stat .l{margin-top:3px}
+
+  .msg{display:none;margin-top:24px;border:1px solid var(--rule);border-left:3px solid var(--alert);border-radius:4px;background:var(--panel);padding:14px 16px}
+  .msg.on{display:block}
+  .msg h3{margin:0 0 5px;font-size:14px;font-weight:600}
+  .msg p{margin:0;font-size:13.5px;color:var(--ink-dim)}
+  .msg code{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+
+  .table-wrap{margin-top:22px;border:1px solid var(--rule);border-radius:6px;overflow:auto}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px}
+  th{text-align:left;background:var(--panel-2);color:var(--ink-faint);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;padding:9px 12px;border-bottom:1px solid var(--rule);position:sticky;top:0;white-space:nowrap}
+  td{padding:8px 12px;border-bottom:1px solid var(--rule-soft);background:var(--panel);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.dim{color:var(--ink-faint)}
+  td.warnc{color:var(--out)}
+  .chip-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:999px;padding:3px 8px;font-size:11.5px;color:var(--ink);background:rgba(255,255,255,.03)}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint)}
+  .chip.addr{border-color:rgba(79,195,217,.35);color:var(--in)}
+  .chip.addr .dot{background:var(--in)}
+  .chip.set{border-color:rgba(224,162,83,.35);color:var(--out)}
+  .chip.set .dot{background:var(--out)}
+  .chip.app{border-color:rgba(111,185,138,.35);color:var(--ok)}
+  .chip.app .dot{background:var(--ok)}
+  .chip.other{border-color:rgba(224,100,95,.25);color:var(--alert)}
+  .chip.other .dot{background:var(--alert)}
+  .chip.toggle{cursor:pointer;color:var(--ink-dim)}
+  .chip.toggle:hover{border-color:var(--ink-faint)}
+  .chip-group{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+  .chip-list{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .chip-stack{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+  .collapse{display:none;margin-top:2px;padding-left:4px}
+  .collapse.on{display:block}
+  .collapse .chip{font-size:11px}
+
+  .hidden{display:none !important}
+  .foot{margin-top:34px;font-size:12px;color:var(--ink-faint);line-height:1.6}
+  .ver{margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-faint)}
+
+  @media (max-width:860px){.panes{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead">
+    <h1>Security Policy Report</h1>
+    <span class="spacer"></span>
+    <span class="privacy">Runs entirely in this page. Nothing is uploaded.</span>
+  </div>
+
+  <div class="panes">
+    <div class="pane">
+      <div class="pane-head">
+        <label class="eyebrow" for="rawPolicies">Policy output</label>
+        <span class="cmd">show configuration security policies</span>
+        <span class="state" id="policyState">not parsed</span>
+      </div>
+      <textarea id="rawPolicies" spellcheck="false" placeholder="set security policies from-zone trust to-zone untrust policy allow-web match source-address any
+set security policies from-zone trust to-zone untrust policy allow-web match destination-address any
+set security policies from-zone trust to-zone untrust policy allow-web match application any
+
+or
+
+from-zone trust to-zone untrust {
+  policy allow-web {
+    match {
+      source-address any;
+      destination-address any;
+      application any;
+    }
+  }
+}"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head">
+        <label class="eyebrow" for="rawAddressBook">Address book (optional)</label>
+        <span class="cmd">show configuration security address-book</span>
+        <span class="state" id="addressState">optional</span>
+      </div>
+      <textarea id="rawAddressBook" spellcheck="false" placeholder="address-book {
+  global {
+    address web-servers 192.0.2.10/32;
+    address-set internal-nets {
+      address-address [ web-servers 198.51.100.0/24 ];
+    }
+  }
+}"></textarea>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="parseBtn">Build report</button>
+    <button class="ghost" id="sampleBtn">Load sample</button>
+    <button class="ghost" id="clearBtn">Clear</button>
+    <span class="spacer"></span>
+    <button class="ghost" id="csvBtn">Download CSV</button>
+    <button class="ghost" id="mdBtn">Copy Markdown</button>
+  </div>
+
+  <div class="msg" id="msg">
+    <h3 id="msgTitle"></h3>
+    <p id="msgBody"></p>
+  </div>
+
+  <div class="summary" id="summary">
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="toolbar" id="toolbar">
+    <input type="search" id="filter" placeholder="Filter by from-zone, to-zone, address, address-set, or application">
+  </div>
+
+  <div class="table-wrap hidden" id="tableWrap">
+    <table id="table"></table>
+  </div>
+
+  <p class="foot">
+    The report surfaces from-zone, to-zone, source, destination, and application values from either policy-block output or configuration-style <code>set security policies ...</code> lines. If the address-book config is pasted, named values and nested address sets are resolved recursively when possible.
+  </p>
+  <div class="ver">Version 1.0</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function esc(s){
+    return String(s==null?"":s).replace(/[&<>\""]/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+    });
+  }
+
+  function uniq(a){
+    var out = [];
+    a.forEach(function(v){ if(out.indexOf(v) === -1) out.push(v); });
+    return out;
+  }
+
+  function splitTokens(raw){
+    var s = String(raw||"").trim();
+    if(!s) return [];
+    s = s.replace(/\s+/g," ");
+    s = s.replace(/^\[/,"").replace(/\]$/,"" );
+    s = s.replace(/\[|\]/g," ");
+    s = s.replace(/,/g," ");
+    return s.split(/\s+/).filter(function(token){ return token && token !== "{" && token !== "}"; });
+  }
+
+  function normalizeValue(raw){
+    var s = String(raw||"").trim();
+    if(!s) return "";
+    s = s.replace(/;$/,"").trim();
+    s = s.replace(/\s+/g," ");
+    if(s.indexOf("[") !== -1){
+      s = s.replace(/^\[/,"").replace(/\]$/,"" );
+      s = s.replace(/\[|\]/g," ");
+      s = s.replace(/,/g," ");
+      return s.trim();
+    }
+    return s;
+  }
+
+  function parseAddressBook(text){
+    var addresses = {};
+    var sets = {};
+    var lines = String(text||"").replace(/\r\n?/g,"\n").split("\n");
+
+    function parseBody(bodyText){
+      var bodyLines = String(bodyText||"").replace(/\r\n?/g,"\n").split("\n");
+      var i = 0;
+      while(i < bodyLines.length){
+        var ln = bodyLines[i].trim();
+        if(!ln || /^\/\//.test(ln)){ i++; continue; }
+        var m = ln.match(/^address\s+([A-Za-z0-9._-]+)\s+([^\s;]+)\s*;?$/);
+        if(m){ addresses[m[1]] = m[2]; i++; continue; }
+        var sm = ln.match(/^address-set\s+([A-Za-z0-9._-]+)\s*\{$/);
+        if(sm){
+          var body = [];
+          var depth = 1;
+          var j = i + 1;
+          while(j < bodyLines.length && depth > 0){
+            var line = bodyLines[j];
+            body.push(line);
+            depth += (line.match(/\{/g)||[]).length - (line.match(/\}/g)||[]).length;
+            j++;
+          }
+          sets[sm[1]] = parseBody(body.join("\n"));
+          i = j;
+          continue;
+        }
+        var lm = ln.match(/^(?:address-address|address|address-set)\s*\[(.*?)\]\s*;?$/);
+        if(lm){
+          splitTokens(lm[2]).forEach(function(token){ if(token && token !== "any") { if(!addresses[token] && !sets[token]) { if(!sets[token]) sets[token] = []; } } });
+        }
+        i++;
+      }
+      return Object.keys(addresses).concat(Object.keys(sets));
+    }
+
+    parseBody(lines.join("\n"));
+    return { addresses: addresses, sets: sets };
+  }
+
+  function classifyToken(token){
+    var s = String(token||"").trim();
+    if(!s) return "other";
+    if(/(^|\s)(address|addr|host|network|subnet|ip|ip-prefix)$/i.test(s)) return "addr";
+    if(/set|group|collection/i.test(s)) return "set";
+    if(/junos-|app|application/i.test(s)) return "app";
+    return "other";
+  }
+
+  function appPalette(label){
+    var palette = [
+      {border:"rgba(111,185,138,.35)", color:"#6fb98a"},
+      {border:"rgba(79,195,217,.35)", color:"#4fc3d9"},
+      {border:"rgba(224,162,83,.35)", color:"#e0a253"},
+      {border:"rgba(224,100,95,.25)", color:"#e0645f"},
+      {border:"rgba(168,85,247,.25)", color:"#c084fc"},
+      {border:"rgba(244,114,182,.25)", color:"#f472b6"},
+      {border:"rgba(129,140,248,.25)", color:"#818cf8"},
+      {border:"rgba(250,204,21,.25)", color:"#facc15"}
+    ];
+    var hash = 0;
+    var text = String(label||"");
+    for(var i=0;i<text.length;i++) hash = (hash * 31 + text.charCodeAt(i)) % palette.length;
+    return palette[hash];
+  }
+
+  function resolveTokenToItems(token, data, seen, depth){
+    var addresses = data.addresses || {};
+    var sets = data.sets || {};
+    if(!token) return [];
+    if(token === "any") return [{kind:"other", label:"any"}];
+    if(addresses[token]) return [{kind:"addr", label: token + " (" + addresses[token] + ")"}];
+    if(sets[token]){
+      if(seen && seen[token]) return [];
+      var children = [];
+      var members = sets[token];
+      var d = (depth || 0) + 1;
+      if(typeof members === "string"){
+        children = [{kind: classifyToken(members), label: members}];
+      } else {
+        members.forEach(function(item){
+          if(d < 3){
+            var resolved = resolveTokenToItems(item, data, seen, d);
+            children = children.concat(resolved);
+          } else {
+            if(addresses[item]){
+              children.push({kind:"addr", label: item + " (" + addresses[item] + ")", leaf:true});
+            } else if(sets[item]){
+              children.push({kind:"set", label: item});
+            } else {
+              children.push({kind: classifyToken(item), label: item, leaf:true});
+            }
+          }
+        });
+      }
+      return [{kind:"set", label: token, children: children}];
+    }
+    return [{kind: classifyToken(token), label: token}];
+  }
+
+  function resolveRefs(value, data, seen){
+    var out = [];
+    var tokens = splitTokens(normalizeValue(value));
+    tokens.forEach(function(token){
+      if(!token || token === "any") return;
+      if(seen && seen[token]) return;
+      out = out.concat(resolveTokenToItems(token, data, seen, 0));
+    });
+    return out;
+  }
+
+  function parsePolicies(text){
+    var policies = [];
+    var lines = String(text||"").replace(/\r\n?/g,"\n").split("\n");
+    var currentGroup = null;
+    var currentPolicy = null;
+    var groupDepth = 0;
+    var policyDepth = 0;
+
+    function ensurePolicy(from,to,name){
+      for(var i=0;i<policies.length;i++){
+        var p = policies[i];
+        if(p.from === from && p.to === to && p.name === name) return p;
+      }
+      var created = { from: from, to: to, name: name, source: "", destination: "", application: "" };
+      policies.push(created);
+      return created;
+    }
+
+    function commitPolicy(){
+      if(currentPolicy){
+        currentPolicy = null;
+        policyDepth = 0;
+      }
+    }
+
+    function commitGroup(){
+      if(currentGroup){
+        currentGroup = null;
+        groupDepth = 0;
+      }
+    }
+
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i].trim();
+      if(!ln) continue;
+
+      var configMatch = ln.match(/^set\s+security\s+policies\s+from-zone\s+(\S+)\s+to-zone\s+(\S+)\s+policy\s+(\S+)\s+match\s+(source|destination|application)(?:-address)?\s+(.+)$/i);
+      if(configMatch){
+        var configField = configMatch[4].toLowerCase();
+        var configPolicy = ensurePolicy(configMatch[1], configMatch[2], configMatch[3]);
+        var configValue = normalizeValue(configMatch[5]);
+        if(configField === "source") configPolicy.source = configValue;
+        if(configField === "destination") configPolicy.destination = configValue;
+        if(configField === "application") configPolicy.application = configValue;
+        continue;
+      }
+
+      var groupMatch = ln.match(/^from-zone\s+(\S+)\s+to-zone\s+(\S+)\s*\{$/i);
+      if(groupMatch){
+        commitPolicy();
+        commitGroup();
+        currentGroup = { from: groupMatch[1], to: groupMatch[2] };
+        groupDepth = 1;
+        continue;
+      }
+
+      var policyMatch = ln.match(/^policy\s+(\S+)\s*\{$/i);
+      if(policyMatch && currentGroup){
+        commitPolicy();
+        currentPolicy = { from: currentGroup.from, to: currentGroup.to, name: policyMatch[1], source: "", destination: "", application: "" };
+        policies.push(currentPolicy);
+        policyDepth = 1;
+        continue;
+      }
+
+      if(currentPolicy){
+        var fieldMatch = ln.match(/^(source|destination|application)(?:-address)?\s+(.+)$/i);
+        if(fieldMatch){
+          var field = fieldMatch[1].toLowerCase();
+          var value = normalizeValue(fieldMatch[2]);
+          if(field === "source") currentPolicy.source = value;
+          if(field === "destination") currentPolicy.destination = value;
+          if(field === "application") currentPolicy.application = value;
+        }
+      }
+
+      var openCount = (ln.match(/\{/g)||[]).length;
+      var closeCount = (ln.match(/\}/g)||[]).length;
+      if(currentPolicy){
+        policyDepth += openCount;
+        policyDepth -= closeCount;
+        if(policyDepth <= 0){ commitPolicy(); }
+      }
+      if(currentGroup){
+        groupDepth += openCount;
+        groupDepth -= closeCount;
+        if(groupDepth <= 0){ commitGroup(); }
+      }
+    }
+
+    if(currentPolicy) commitPolicy();
+    if(currentGroup) commitGroup();
+    return policies;
+  }
+
+  function buildRows(policies, data){
+    return policies.map(function(p){
+      var srcItems = data && data.addresses ? resolveRefs(p.source, data, {}) : splitTokens(normalizeValue(p.source)).map(function(t){return {kind:"other", label:t};});
+      var dstItems = data && data.addresses ? resolveRefs(p.destination, data, {}) : splitTokens(normalizeValue(p.destination)).map(function(t){return {kind:"other", label:t};});
+      var appItems = splitTokens(normalizeValue(p.application)).map(function(t){return {kind: classifyToken(t), label:t};});
+      return [
+        p.from || "",
+        p.to || "",
+        p.name || "",
+        srcItems,
+        dstItems,
+        appItems
+      ];
+    });
+  }
+
+  var state = {
+    policies: [],
+    rows: [],
+    addressData: null,
+    filter: ""
+  };
+
+  function itemLabels(items){
+    var out = [];
+    (items||[]).forEach(function(it){
+      if(it && it.label) out.push(it.label);
+      if(it && it.children && it.children.length) out = out.concat(itemLabels(it.children));
+    });
+    return out;
+  }
+
+  function rowMatches(r, q){
+    if(!q) return true;
+    var hay = [r[0], r[1], r[2]]
+      .concat(itemLabels(r[3]))
+      .concat(itemLabels(r[4]))
+      .concat(itemLabels(r[5]))
+      .join(" ").toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+
+  function filteredRows(){
+    var q = state.filter.trim().toLowerCase();
+    if(!q) return state.rows;
+    return state.rows.filter(function(r){ return rowMatches(r, q); });
+  }
+
+  function showMsg(title, body){
+    $("msgTitle").textContent = title;
+    $("msgBody").innerHTML = body;
+    $("msg").classList.add("on");
+  }
+
+  function hideMsg(){
+    $("msg").classList.remove("on");
+  }
+
+  function renderSummary(){
+    if(!state.rows.length){
+      $("summary").classList.remove("on");
+      return;
+    }
+    $("summary").classList.add("on");
+    var cells = [
+      {n:state.rows.length, l:"Policies"},
+      {n:uniq(state.rows.map(function(r){ return r[0]; })).length, l:"From-zones"},
+      {n:uniq(state.rows.map(function(r){ return r[1]; })).length, l:"To-zones"}
+    ];
+    $("stats").innerHTML = cells.map(function(c){
+      return '<div class="stat"><div class="n">'+esc(c.n)+'</div><div class="l eyebrow">'+esc(c.l)+'</div></div>';
+    }).join("");
+  }
+
+  function renderItem(item, context){
+    var label = item && item.label ? item.label : String(item||"");
+    var kind = item && item.kind ? item.kind : classifyToken(label);
+    var chipClass = "chip other";
+    var style = "";
+    var dotStyle = "";
+
+    if(context === "application"){
+      var appStyle = appPalette(label);
+      chipClass = "chip app";
+      style = ' style="border-color:'+appStyle.border+';color:'+appStyle.color+'"';
+      dotStyle = ' style="background:'+appStyle.color+'"';
+    } else if(kind === "set"){
+      chipClass = "chip set";
+    } else if(kind === "addr"){
+      chipClass = "chip addr";
+    } else if(kind === "app"){
+      chipClass = "chip app";
+    }
+
+    var isSet = item && item.kind === "set" && item.children && item.children.length;
+    
+    if(isSet){
+      var html = '<div class="chip-group"><div class="chip-row"><span class="'+chipClass+'"'+style+'><span class="dot"'+dotStyle+'></span>'+esc(label)+'</span>';
+      html += '<span class="chip toggle">▾</span></div>';
+      html += '<div class="collapse"><div class="chip-list">' + item.children.map(function(child){ return renderItem(child, context); }).join("") + '</div></div>';
+      html += '</div>';
+      return html;
+    } else {
+      return '<span class="'+chipClass+'"'+style+'><span class="dot"'+dotStyle+'></span>'+esc(label)+'</span>';
+    }
+  }
+
+  function renderValue(value, context){
+    var items = [];
+    if(Array.isArray(value)){
+      items = value;
+    } else if(value && typeof value === "object" && value.kind){
+      items = [value];
+    } else {
+      items = resolveRefs(String(value||""), state.addressData || {}, {});
+    }
+    if(!items.length) return "—";
+    var containerClass = context === "application" ? "chip-row" : "chip-stack";
+    return '<div class="'+containerClass+'">' + items.map(function(item){ return renderItem(item, context); }).join("") + '</div>';
+  }
+
+  function renderTable(){
+    var cols = ["From zone","To zone","Policy","Source","Destination","Application"];
+    if(!state.rows.length){
+      $("tableWrap").classList.add("hidden");
+      $("toolbar").classList.remove("on");
+      $("table").innerHTML = "";
+      return;
+    }
+    $("toolbar").classList.add("on");
+    $("tableWrap").classList.remove("hidden");
+    var head = "<thead><tr>" + cols.map(function(c){ return "<th>"+esc(c)+"</th>"; }).join("") + "</tr></thead>";
+    var rows = filteredRows();
+    if(!rows.length){
+      $("table").innerHTML = head + "<tbody><tr><td class='dim' colspan='" + cols.length + "'>No policies match the current filter.</td></tr></tbody>";
+      return;
+    }
+    var body = rows.map(function(r){
+      return "<tr>" + r.map(function(cell, idx){
+        if(idx < 3) return "<td>" + esc(cell||"—") + "</td>";
+        var context = idx === 5 ? "application" : "address";
+        return "<td>" + renderValue(cell, context) + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
+
+    Array.prototype.forEach.call($("table").querySelectorAll(".chip.toggle"), function(el){
+      el.addEventListener("click", function(){
+        var group = el.closest(".chip-group");
+        var collapse = group ? group.querySelector(".collapse") : null;
+        if(collapse){
+          collapse.classList.toggle("on");
+          el.textContent = collapse.classList.contains("on") ? "▴" : "▾";
+        }
+      });
+    });
+  }
+
+  function doParse(){
+    var policyText = $("rawPolicies").value;
+    var addressText = $("rawAddressBook").value;
+    var parsed = parsePolicies(policyText);
+    var data = addressText && addressText.trim() ? parseAddressBook(addressText) : null;
+
+    state.policies = parsed;
+    state.addressData = data;
+    state.rows = buildRows(parsed, data);
+
+    $("policyState").textContent = state.rows.length ? state.rows.length + " policies" : "not parsed";
+    $("policyState").className = "state" + (state.rows.length ? " ok" : "");
+
+    if(!state.rows.length){
+      showMsg("Nothing recognised", "Paste output from <code>show security policies</code> into the left pane. The address-book pane is optional.");
+      $("summary").classList.remove("on");
+      $("tableWrap").classList.add("hidden");
+      $("table").innerHTML = "";
+      return;
+    }
+
+    hideMsg();
+    renderSummary();
+    renderTable();
+  }
+
+  function fillSample(){
+    $("rawPolicies").value = "from-zone trust to-zone untrust {\n  policy allow-web {\n    match {\n      source-address [ internal-nets ];\n      destination-address [ web-servers ];\n      application [ junos-http junos-https ];\n    }\n  }\n}\n\nfrom-zone untrust to-zone trust {\n  policy deny-all {\n    match {\n      source-address any;\n      destination-address any;\n      application any;\n    }\n  }\n}";
+    $("rawAddressBook").value = "address-book {\n  global {\n    address web-servers 192.0.2.10/32;\n    address-set internal-nets {\n      address-address [ web-servers 198.51.100.0/24 ];\n    }\n  }\n}";
+    doParse();
+  }
+
+  function clearAll(){
+    $("rawPolicies").value = "";
+    $("rawAddressBook").value = "";
+    state.policies = [];
+    state.rows = [];
+    state.addressData = null;
+    state.filter = "";
+    $("filter").value = "";
+    $("policyState").textContent = "not parsed";
+    $("policyState").className = "state";
+    $("summary").classList.remove("on");
+    $("toolbar").classList.remove("on");
+    $("tableWrap").classList.add("hidden");
+    $("table").innerHTML = "";
+    hideMsg();
+  }
+
+  $("parseBtn").addEventListener("click", doParse);
+  $("sampleBtn").addEventListener("click", fillSample);
+  $("filter").addEventListener("input", function(){ state.filter = this.value; renderTable(); });
+  $("clearBtn").addEventListener("click", clearAll);
+
+  function cellText(cell){
+    if(Array.isArray(cell)){
+      return cell.map(function(item){ return item && item.label ? item.label : String(item==null?"":item); }).join(", ");
+    }
+    if(cell && typeof cell === "object" && cell.label){
+      return cell.label;
+    }
+    return String(cell==null?"":cell);
+  }
+
+  $("csvBtn").addEventListener("click", function(){
+    if(!state.rows.length){ showMsg("Nothing to export","Build the report first."); return; }
+    var cols = ["From zone","To zone","Policy","Source","Destination","Application"];
+    var rows = filteredRows().map(function(r){ return r.map(function(cell){ return '"' + cellText(cell).replace(/"/g,'""') + '"'; }).join(","); });
+    var content = [cols.map(function(c){ return '"' + c + '"'; }).join(",")].concat(rows).join("\n");
+    var a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(content);
+    a.download = "security-policies.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+
+  $("mdBtn").addEventListener("click", function(){
+    if(!state.rows.length){ showMsg("Nothing to copy","Build the report first."); return; }
+    var cols = ["From zone","To zone","Policy","Source","Destination","Application"];
+    var md = ["| " + cols.join(" | ") + " |", "|" + cols.map(function(){ return "---"; }).join("|") + "|"].concat(filteredRows().map(function(r){
+      return "| " + r.map(function(c){ return String(cellText(c)||"—").replace(/\|/g,"\\|"); }).join(" | ") + " |";
+    })).join("\n");
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(md).then(function(){}, function(){ fallbackCopy(md); });
+    } else { fallbackCopy(md); }
+  });
+
+  function fallbackCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); }catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  window.__parsePolicies = parsePolicies;
+})();
+</script>
+</body>
+</html>

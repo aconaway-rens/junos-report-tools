@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zone &amp; Route Report</title>
+<style>
+  :root{
+    --ground:#131a21;
+    --panel:#1b242d;
+    --panel-2:#212d38;
+    --rule:#2c3945;
+    --rule-soft:#243039;
+    --ink:#dfe7ec;
+    --ink-dim:#8296a5;
+    --ink-faint:#5e7182;
+    --in:#4fc3d9;
+    --out:#e0a253;
+    --alert:#e0645f;
+    --ok:#6fb98a;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 22px 80px}
+
+  .masthead{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--rule)}
+  .masthead h1{font-family:var(--mono);font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0}
+  .cmd{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);border:1px solid var(--rule);border-radius:3px;padding:2px 7px}
+  .masthead .spacer{flex:1}
+  .privacy{font-size:12px;color:var(--ink-faint)}
+
+  .eyebrow{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+
+  .panes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+  .pane{display:flex;flex-direction:column}
+  .pane-head{display:flex;align-items:baseline;gap:9px;margin-bottom:6px}
+  .pane-head .state{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+  .pane-head .state.ok{color:var(--ok)}
+  textarea{width:100%;min-height:170px;resize:vertical;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:5px;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 13px}
+  textarea::placeholder{color:var(--ink-faint)}
+  textarea:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--in);outline-offset:2px}
+  .panes.stowed textarea{min-height:66px;height:66px}
+
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+  button{font-family:var(--sans);font-size:13px;background:var(--panel-2);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:7px 13px;cursor:pointer}
+  button:hover{border-color:var(--ink-faint)}
+  button.primary{background:var(--in);color:#0d1418;border-color:var(--in);font-weight:600}
+  button.primary:hover{filter:brightness(1.09)}
+  button.ghost{background:transparent}
+  .controls .spacer{flex:1}
+
+  .summary{display:none;margin-top:26px;border:1px solid var(--rule);border-radius:5px;background:var(--panel);padding:15px 17px}
+  .summary.on{display:block}
+  .stats{display:flex;flex-wrap:wrap;gap:26px 40px}
+  .stat .n{font-family:var(--mono);font-size:25px;line-height:1.1;letter-spacing:-.02em}
+  .stat .n.warnv{color:var(--out)}
+  .stat .n.badv{color:var(--alert)}
+  .stat .l{margin-top:3px}
+
+  .toolbar{display:none;gap:9px;margin-top:18px;flex-wrap:wrap;align-items:center}
+  .toolbar.on{display:flex}
+  input[type=search]{flex:1;min-width:190px;background:var(--panel);border:1px solid var(--rule);border-radius:4px;color:var(--ink);font-family:var(--mono);font-size:13px;padding:7px 11px}
+  input[type=search]::placeholder{color:var(--ink-faint)}
+  .seg{display:flex;border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+  .seg button{border:0;border-radius:0;background:transparent;padding:7px 13px}
+  .seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ink);font-weight:600}
+  .toggle{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-dim);cursor:pointer;white-space:nowrap}
+
+  .msg{display:none;margin-top:24px;border:1px solid var(--rule);border-left:3px solid var(--alert);border-radius:4px;background:var(--panel);padding:14px 16px}
+  .msg.on{display:block}
+  .msg h3{margin:0 0 5px;font-size:14px;font-weight:600}
+  .msg p{margin:0;font-size:13.5px;color:var(--ink-dim)}
+  .msg code{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+
+  .cards{margin-top:22px;display:flex;flex-direction:column;gap:14px}
+  .zone{border:1px solid var(--rule);border-radius:6px;background:var(--panel);overflow:hidden}
+  .zone-head{display:flex;flex-wrap:wrap;align-items:center;gap:9px 14px;padding:12px 16px;border-bottom:1px solid var(--rule-soft)}
+  .zone-name{font-family:var(--mono);font-size:15px;font-weight:600}
+  .zone-head .spacer{flex:1}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.04em;border:1px solid var(--rule);border-radius:3px;padding:2px 8px;color:var(--ink-dim)}
+  .tag.func{color:var(--out);border-color:var(--out)}
+  .count{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;padding:3px 9px;border-radius:3px;background:rgba(79,195,217,.13);color:var(--in)}
+  .count.zero{background:rgba(224,162,83,.14);color:var(--out)}
+  .count.routes{background:rgba(111,185,138,.13);color:var(--ok)}
+  .count.routes.zero{background:rgba(224,162,83,.14);color:var(--out)}
+
+  .ifaces{padding:14px 16px 12px;display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .iface{font-family:var(--mono);font-size:12.5px;border:1px solid var(--rule);border-left:2px solid var(--in);border-radius:3px;padding:4px 10px;background:var(--ground)}
+  .iface.dupe{border-left-color:var(--alert);color:var(--alert)}
+  .iface .rc{color:var(--ink-faint);font-size:11px;margin-left:6px}
+  .none{font-size:13px;color:var(--ink-faint)}
+
+  .routebox{border-top:1px solid var(--rule-soft);padding:11px 16px}
+  .routebox .eyebrow{display:block;margin-bottom:7px}
+  .rlist{display:flex;flex-direction:column;gap:3px}
+  .r{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-family:var(--mono);font-size:12px}
+  .r .p{min-width:150px}
+  .r .pr{color:var(--ink-dim)}
+  .r .nh{color:var(--ink-faint)}
+  .r .tb{color:var(--ink-faint);font-size:11px}
+  .r.inactive{opacity:.55}
+  .more{font-size:12px;color:var(--ink-faint);margin-top:6px;cursor:pointer;text-decoration:underline dotted}
+
+  .attrs{border-top:1px solid var(--rule-soft);padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 22px}
+  .attr{font-size:12.5px;color:var(--ink-dim)}
+  .attr b{color:var(--ink);font-weight:500;font-family:var(--mono);font-size:12px}
+
+  .notes{border-top:1px solid var(--rule-soft);padding:10px 16px;display:flex;flex-direction:column;gap:5px}
+  .note{font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
+  .note .bullet{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;flex:0 0 auto;padding-top:1px}
+  .note.warn .bullet{color:var(--out)}
+  .note.bad .bullet{color:var(--alert)}
+  .note.info .bullet{color:var(--ink-faint)}
+  .note.warn,.note.bad{color:var(--ink)}
+  .note.info{color:var(--ink-dim)}
+
+  .table-wrap{display:none;margin-top:22px;border:1px solid var(--rule);border-radius:6px;overflow:auto}
+  .table-wrap.on{display:block}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px}
+  th{text-align:left;background:var(--panel-2);color:var(--ink-faint);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;padding:9px 12px;border-bottom:1px solid var(--rule);position:sticky;top:0;white-space:nowrap}
+  td{padding:8px 12px;border-bottom:1px solid var(--rule-soft);background:var(--panel);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  tr.inactive td{opacity:.55}
+  td.nowrap{white-space:nowrap}
+  td.dim{color:var(--ink-faint)}
+  td.warnc{color:var(--out)}
+  td.badc{color:var(--alert)}
+  td.okc{color:var(--ok)}
+
+  .hidden{display:none !important}
+  .foot{margin-top:34px;font-size:12px;color:var(--ink-faint);line-height:1.6}
+  .ver{margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-faint)}
+  .foot code{font-family:var(--mono)}
+
+  @media (max-width:820px){
+    .panes{grid-template-columns:1fr}
+    .attrs{flex-direction:column;gap:4px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <h1>Zone &amp; Route Report</h1>
+    <span class="spacer"></span>
+    <span class="privacy">Runs entirely in this page. Nothing is uploaded.</span>
+  </div>
+
+  <div class="panes" id="panes">
+    <div class="pane">
+      <div class="pane-head">
+        <label class="eyebrow" for="rawZones">Zone output</label>
+        <span class="cmd">show configuration security zones</span>
+        <span class="state" id="zoneState">not parsed</span>
+      </div>
+      <textarea id="rawZones" spellcheck="false" placeholder="security {
+    zones {
+        security-zone trust {
+            interfaces {
+                reth0.0;
+                reth0.100;
+            }
+        }
+    }
+}
+
+or
+
+set security zones security-zone trust interfaces reth0.0
+set security zones security-zone trust interfaces reth0.100"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head">
+        <label class="eyebrow" for="rawRoutes">Route output (optional)</label>
+        <span class="cmd">show route</span>
+        <span class="state" id="routeState">optional</span>
+      </div>
+      <textarea id="rawRoutes" spellcheck="false" placeholder="inet.0: 12 destinations, 14 routes (12 active, 0 holddown, 0 hidden)
++ = Active Route, - = Last Active, * = Both
+
+0.0.0.0/0          *[Static/5] 2w3d 04:12:33
+                    >  to 203.0.113.254 via reth1.0"></textarea>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="parseBtn">Build report</button>
+    <button class="ghost" id="sampleBtn">Load sample</button>
+    <button class="ghost" id="clearBtn">Clear</button>
+    <span class="spacer"></span>
+    <button class="ghost" id="csvBtn">Download CSV</button>
+    <button class="ghost" id="mdBtn">Copy Markdown</button>
+  </div>
+
+  <div class="msg" id="msg">
+    <h3 id="msgTitle"></h3>
+    <p id="msgBody"></p>
+  </div>
+
+  <div class="summary" id="summary">
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="toolbar" id="toolbar">
+    <input type="search" id="filter" placeholder="Filter by zone, interface, prefix, next-hop, table, or protocol">
+    <label class="toggle"><input type="checkbox" id="activeOnly" checked> Active routes only</label>
+    <label class="toggle"><input type="checkbox" id="problemsOnly"> Problems only</label>
+    <div class="seg">
+      <button id="viewZones" aria-pressed="true">Zones</button>
+      <button id="viewRoutes" aria-pressed="false">Routes</button>
+      <button id="viewIndex" aria-pressed="false">Interface index</button>
+    </div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="table-wrap" id="tableWrap">
+    <table id="table"></table>
+  </div>
+
+  <p class="foot">
+    Routes have no zone of their own — the join is <code>route → egress interface → zone</code>, so a route
+    is attributed to a zone only when its next-hop resolves to an interface that appears in the zone output.
+    Discard, reject, and receive routes have no egress interface and are listed without a zone. Paste both
+    captures from the same box at the same time; a stale route paste will attribute traffic to the wrong place.
+  </p>
+  <div class="ver">Version 1.0</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================ ZONE PARSER ============================ */
+
+  var ZONE_CONFIG_RE = /^\s*(?:set\s+security\s+zones\s+(security-zone|functional-zone)\s+(\S+)|(security-zone|functional-zone)\s+(\S+)\s*\{)/i;
+  var IFACE_CONFIG_RE = /^\s*(?:set\s+security\s+zones\s+security-zone\s+\S+\s+interfaces\s+([A-Za-z][A-Za-z0-9\/\-:]*\.\d+)|interfaces?\s*\{|\s+([A-Za-z][A-Za-z0-9\/\-:]*\.\d+)\s*;)/i;
+  var NODE_RE  = /^\s*(node\d+|re\d+)\s*:\s*$/i;
+
+  function parseZones(text){
+    if(!text || !text.trim()) return [];
+    var lines = text.replace(/\r\n?/g,"\n").split("\n");
+    var zones = [];
+    var currentZone = null;
+    var inIfaces = false;
+    var node = "";
+
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      var nm = ln.match(NODE_RE);
+      if(nm){ node = nm[1].toLowerCase(); continue; }
+
+      var zm = ln.match(ZONE_CONFIG_RE);
+      if(zm){
+        if(currentZone) zones.push(currentZone);
+        var zkindTok = zm[1] || zm[3];
+        var zname = zm[2] || zm[4];
+        currentZone = { node:node, kind:(/functional/i.test(zkindTok) ? "functional" : "security"),
+          name:zname, desc:"", screen:"", interfaces:[], dupes:[], routes:[], tables:[] };
+        inIfaces = false;
+        continue;
+      }
+
+      if(currentZone){
+        if(/interfaces?\s*\{/.test(ln)){
+          inIfaces = true;
+          continue;
+        }
+        if(/^\s*\}/.test(ln) && inIfaces){
+          inIfaces = false;
+          continue;
+        }
+        if(inIfaces){
+          var im = ln.match(/((?:[A-Za-z][A-Za-z0-9\/\-:]*\.\d+))/);
+          if(im && currentZone.interfaces.indexOf(im[1]) === -1) currentZone.interfaces.push(im[1]);
+          continue;
+        }
+        var dm = ln.match(/^\s*(?:set\s+.*?\s)?description\s+(?:"([^"]*)"|([^\s;{]+));?\s*$/i);
+        if(dm){ currentZone.desc = (dm[1] != null ? dm[1] : dm[2]); continue; }
+        var sm = ln.match(/^\s*(?:set\s+.*?\s)?screen\s+([^\s;{]+);?\s*$/i);
+        if(sm){ currentZone.screen = sm[1]; continue; }
+      }
+    }
+
+    if(currentZone) zones.push(currentZone);
+    
+    zones.forEach(function(z){ z.bound = z.interfaces.length; });
+    markDuplicates(zones);
+    return zones;
+  }
+
+  function markDuplicates(zones){
+    var seen = {};
+    zones.forEach(function(z){
+      z.interfaces.forEach(function(i){
+        var k = (z.node||"")+"|"+i;
+        (seen[k] = seen[k] || []).push(z.name);
+      });
+    });
+    zones.forEach(function(z){
+      z.dupes = z.interfaces.filter(function(i){
+        var k = (z.node||"")+"|"+i;
+        return seen[k] && uniq(seen[k]).length > 1;
+      });
+    });
+  }
+
+  /* ============================ ROUTE PARSER ============================ */
+
+  // "inet.0: 12 destinations, 14 routes (12 active, 0 holddown, 0 hidden)"
+  var TABLE_RE = /^(\S+):\s+(\d+)\s+destinations?,\s+(\d+)\s+routes?/;
+  // "0.0.0.0/0          *[Static/5] 2w3d 04:12:33"
+  var ROUTE_RE = /^(\S+)\s+([*+-]{0,2})\[([A-Za-z0-9_-]+)\/(\d+)(?:\/(\d+))?\]\s*(.*)$/;
+  // continuation path for the same prefix: "                    [Static/5] ..."
+  var PATH_RE  = /^\s+([*+-]{0,2})\[([A-Za-z0-9_-]+)\/(\d+)(?:\/(\d+))?\]\s*(.*)$/;
+  var PREFIX_OK = /^(?:\d{1,3}(?:\.\d{1,3}){3}(?:\/\d{1,2})?|[0-9a-fA-F:]+(?:\/\d{1,3})?|\S+\/\d+)$/;
+
+  function parseRoutes(text){
+    if(!text || !text.trim()) return { routes:[], tables:[] };
+    var lines = text.replace(/\r\n?/g,"\n").split("\n");
+
+    var routes = [], tables = [], table = "", node = "", cur = null;
+
+    function closeRoute(){
+      if(!cur) return;
+      if(!cur.paths.length) cur.paths.push({nh:"", iface:"", kind:"none", selected:true});
+      routes.push(cur);
+      cur = null;
+    }
+
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      if(!ln.trim()) continue;
+
+      var nm = ln.match(NODE_RE);
+      if(nm){ closeRoute(); node = nm[1].toLowerCase(); continue; }
+
+      var tm = ln.match(TABLE_RE);
+      if(tm){
+        closeRoute();
+        table = tm[1];
+        if(tables.indexOf(table) === -1) tables.push(table);
+        continue;
+      }
+
+      if(/^\+\s*=\s*Active Route/.test(ln)) continue;
+
+      var rm = ln.match(ROUTE_RE);
+      if(rm && PREFIX_OK.test(rm[1])){
+        closeRoute();
+        cur = newRoute(node, table, rm[1], rm[2], rm[3], rm[4], rm[5], rm[6]);
+        readNextHopInline(cur, rm[6]);
+        continue;
+      }
+
+      var pm = ln.match(PATH_RE);
+      if(pm && cur){
+        // additional path for the same prefix — record it as its own row
+        closeRoute();
+        cur = newRoute(node, table, routes.length ? routes[routes.length-1].prefix : "", pm[1], pm[2], pm[3], pm[4], pm[5]);
+        cur.extraPath = true;
+        readNextHopInline(cur, pm[5]);
+        continue;
+      }
+
+      if(cur) readNextHopLine(cur, ln);
+    }
+    closeRoute();
+
+    return { routes:routes, tables:tables };
+  }
+
+  function newRoute(node, table, prefix, marker, proto, pref, metric, rest){
+    return {
+      node:node, table:table, prefix:prefix,
+      active: marker.indexOf("*") !== -1 || marker.indexOf("+") !== -1,
+      marker: marker,
+      protocol: proto,
+      pref: pref,
+      metric: metric || "",
+      age: (rest||"").trim(),
+      paths: [],
+      extraPath: false
+    };
+  }
+
+  function readNextHopInline(r, rest){
+    if(!rest) return;
+    // some outputs put the next-hop on the same line
+    if(/\bvia\b|\bReject\b|\bDiscard\b|\bReceive\b|\bLocal\b/.test(rest)) readNextHopLine(r, rest);
+  }
+
+  function readNextHopLine(r, ln){
+    var selected = /^\s*>/.test(ln) || /\s>\s/.test(ln);
+    var viaM = ln.match(/via\s+([A-Za-z][A-Za-z0-9\/\-:]*\.\d+)/);
+    var toM  = ln.match(/\bto\s+([0-9a-fA-F:.]+)/);
+
+    if(viaM){
+      r.paths.push({
+        nh: toM ? toM[1] : "",
+        iface: viaM[1],
+        kind: /\bLocal\b/.test(ln) ? "local" : (toM ? "via" : "direct"),
+        selected: selected
+      });
+      return;
+    }
+    if(/\bReject\b/.test(ln))   { r.paths.push({nh:"", iface:"", kind:"reject",  selected:selected}); return; }
+    if(/\bDiscard\b/.test(ln))  { r.paths.push({nh:"", iface:"", kind:"discard", selected:selected}); return; }
+    if(/\bReceive\b/.test(ln))  { r.paths.push({nh:"", iface:"", kind:"receive", selected:selected}); return; }
+    if(/\bResolve\b/.test(ln))  { r.paths.push({nh:"", iface:"", kind:"resolve", selected:selected}); return; }
+  }
+
+  function uniq(a){ return a.filter(function(v,i){return a.indexOf(v)===i;}); }
+
+  /* ============================ CORRELATION ============================ */
+
+  // one flat row per (route, path) — this is the unit that maps to a zone
+  function buildLegs(routes, ifaceMap, key){
+    var legs = [];
+    routes.forEach(function(r){
+      r.paths.forEach(function(p){
+        var z = p.iface ? ifaceMap[key(r.node, p.iface)] : null;
+        legs.push({
+          node:r.node, table:r.table, prefix:r.prefix, active:r.active,
+          protocol:r.protocol, pref:r.pref, metric:r.metric,
+          nh:p.nh, iface:p.iface, kind:p.kind, selected:p.selected,
+          zone: z ? z.name : "",
+          unzoned: !!(p.iface && !z)
+        });
+      });
+    });
+    return legs;
+  }
+
+  function correlate(zones, routes){
+    // Node banners often appear in one capture and not the other. Only key on node
+    // when BOTH sides report it, otherwise the join silently misses everything.
+    var zonesHaveNode  = zones.some(function(z){ return !!z.node; });
+    var routesHaveNode = routes.some(function(r){ return !!r.node; });
+    var joinOnNode = zonesHaveNode && routesHaveNode;
+
+    function key(node, iface){ return (joinOnNode ? (node||"") : "") + "|" + iface; }
+
+    var ifaceMap = {};
+    zones.forEach(function(z){
+      z.interfaces.forEach(function(i){ ifaceMap[key(z.node, i)] = z; });
+    });
+
+    var legs = buildLegs(routes, ifaceMap, key);
+
+    zones.forEach(function(z){ z.routes = []; z.tables = []; });
+    legs.forEach(function(l){
+      var z = l.iface ? ifaceMap[key(l.node, l.iface)] : null;
+      if(!z) return;
+      z.routes.push(l);
+      if(l.table && z.tables.indexOf(l.table) === -1) z.tables.push(l.table);
+    });
+
+    zones.forEach(function(z){ z.notes = buildNotes(z, routes.length > 0); });
+    state.joinOnNode = joinOnNode;
+    return legs;
+  }
+
+  function buildNotes(z, haveRoutes){
+    var out = [];
+    if(z.kind === "functional"){
+      out.push({level:"info", text:"Functional zone — management traffic only. It cannot be used as a from-zone or to-zone in a security policy."});
+    }
+    if(!z.interfaces.length){
+      out.push({level:"warn", text:"No interfaces bound. Policies referencing this zone will never match traffic."});
+    }
+    if(z.bound !== null && z.bound !== z.interfaces.length){
+      out.push({level:"warn", text:"Reported count is " + z.bound + " but " + z.interfaces.length +
+        " interface" + (z.interfaces.length===1?"":"s") + " listed. The paste may be truncated."});
+    }
+    if(z.dupes.length){
+      out.push({level:"bad", text:"Also listed under another zone: " + z.dupes.join(", ") +
+        ". A logical interface belongs to exactly one security zone."});
+    }
+    if(haveRoutes && z.interfaces.length && !z.routes.length){
+      out.push({level:"warn", text:"Interfaces are bound but no route in the paste egresses this zone. Nothing will be forwarded toward it."});
+    }
+    if(z.tables.length > 1){
+      out.push({level:"info", text:"Reached from more than one routing table: " + z.tables.join(", ") +
+        ". The interfaces in this zone sit in different routing instances."});
+    }
+    if(z.policyCfg && /^no$/i.test(z.policyCfg)){
+      out.push({level:"info", text:"Not policy configurable — policies cannot reference this zone."});
+    }
+    return out;
+  }
+
+  /* ============================ STATE ============================ */
+
+  var state = {
+    zones: [], routes: [], legs: [], tables: [],
+    view: "zones", filter: "", activeOnly: true, problemsOnly: false,
+    expanded: {}
+  };
+  var $ = function(id){ return document.getElementById(id); };
+
+  function esc(s){
+    return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+    });
+  }
+
+  function legMatches(l, q){
+    if(!q) return true;
+    return [l.prefix,l.table,l.protocol,l.nh,l.iface,l.zone,l.node,l.kind]
+      .join(" ").toLowerCase().indexOf(q) !== -1;
+  }
+
+  function visibleLegs(){
+    var q = state.filter.trim().toLowerCase();
+    return state.legs.filter(function(l){
+      if(state.activeOnly && !l.active) return false;
+      if(state.problemsOnly && !(l.unzoned || (!l.zone && l.iface))) return false;
+      return legMatches(l, q);
+    });
+  }
+
+  function zoneHasProblem(z){
+    return (z.notes||[]).some(function(n){ return n.level==="warn" || n.level==="bad"; });
+  }
+
+  function visibleZones(){
+    var q = state.filter.trim().toLowerCase();
+    return state.zones.filter(function(z){
+      if(state.problemsOnly && !zoneHasProblem(z)) return false;
+      if(!q) return true;
+      var hay = [z.name,z.node,z.desc,z.screen].concat(z.interfaces).join(" ").toLowerCase();
+      if(hay.indexOf(q) !== -1) return true;
+      return (z.routes||[]).some(function(l){ return legMatches(l, q); });
+    });
+  }
+
+  /* ============================ RENDER ============================ */
+
+  function render(){
+    renderSummary();
+    $("cards").classList.toggle("hidden", state.view !== "zones");
+    $("tableWrap").classList.toggle("on", state.view !== "zones");
+    if(state.view === "zones")       renderZoneCards(visibleZones());
+    else if(state.view === "routes") renderRouteTable(visibleLegs());
+    else                             renderIndex();
+  }
+
+  function renderSummary(){
+    if(!state.zones.length && !state.legs.length){
+      $("summary").classList.remove("on"); $("toolbar").classList.remove("on"); return;
+    }
+    $("summary").classList.add("on");
+    $("toolbar").classList.add("on");
+
+    var z = state.zones;
+    var activeLegs = state.legs.filter(function(l){return l.active;});
+    var unzoned = uniq(activeLegs.filter(function(l){return l.unzoned;}).map(function(l){return l.iface;}));
+    var noRoutes = z.filter(function(x){return x.interfaces.length && !x.routes.length;}).length;
+
+    var cells = [
+      {n:z.length, l:"Zones"},
+      {n:uniq([].concat.apply([], z.map(function(x){return x.interfaces;}))).length, l:"Interfaces bound"},
+      {n:state.routes.length, l:"Routes"},
+      {n:state.tables.length, l:"Routing tables"},
+      {n:noRoutes, l:"Zones with no routes", cls: noRoutes?"warnv":""},
+      {n:unzoned.length, l:"Egress interfaces with no zone", cls: unzoned.length?"badv":""}
+    ];
+    if(!state.routes.length){
+      cells[2] = {n:0, l:"Routes"};
+      cells[3] = {n:0, l:"Routing tables"};
+    }
+    $("stats").innerHTML = cells.map(function(c){
+      return '<div class="stat"><div class="n '+(c.cls||"")+'">'+c.n+'</div><div class="l eyebrow">'+esc(c.l)+'</div></div>';
+    }).join("");
+  }
+
+  function attrHTML(z){
+    var rows = [
+      ["Screen", z.screen],
+      ["Routing table", z.tables.join(", ")],
+      ["Policy configurable", z.policyCfg],
+      ["TCP-RST on non-SYN", z.tcpRst],
+      ["Application tracking", z.appTrack]
+    ].filter(function(r){ return r[1]; });
+    if(!rows.length) return "";
+    return '<div class="attrs">' + rows.map(function(r){
+      return '<span class="attr">'+esc(r[0])+' <b>'+esc(r[1])+'</b></span>';
+    }).join("") + '</div>';
+  }
+
+  var ROUTE_PREVIEW = 8;
+
+  function routeRowHTML(l){
+    var nh = l.iface
+      ? (l.nh ? "to " + l.nh + " via " + l.iface : "via " + l.iface)
+      : l.kind;
+    return '<div class="r'+(l.active?'':' inactive')+'">' +
+      '<span class="p">'+esc(l.prefix)+'</span>' +
+      '<span class="pr">'+esc(l.protocol)+'/'+esc(l.pref)+'</span>' +
+      '<span class="nh">'+esc(nh)+'</span>' +
+      '<span class="tb">'+esc(l.table)+'</span>' +
+    '</div>';
+  }
+
+  function renderZoneCards(list){
+    if(!list.length){
+      $("cards").innerHTML = '<div class="msg on" style="border-left-color:var(--rule)"><h3>Nothing matches</h3>' +
+        '<p>Clear the filter or switch off the problem toggle to see everything.</p></div>';
+      return;
+    }
+    var q = state.filter.trim().toLowerCase();
+
+    $("cards").innerHTML = list.map(function(z){
+      var n = z.interfaces.length;
+      var routeCountByIface = {};
+      z.routes.forEach(function(l){ routeCountByIface[l.iface] = (routeCountByIface[l.iface]||0) + 1; });
+
+      var legs = z.routes.filter(function(l){
+        if(state.activeOnly && !l.active) return false;
+        return legMatches(l, q);
+      });
+      var expanded = !!state.expanded[z.name];
+      var shown = expanded ? legs : legs.slice(0, ROUTE_PREVIEW);
+
+      return '' +
+      '<div class="zone">' +
+        '<div class="zone-head">' +
+          '<span class="zone-name">'+esc(z.name)+'</span>' +
+          (z.kind==="functional" ? '<span class="tag func">functional</span>' : '') +
+          (z.node ? '<span class="tag">'+esc(z.node)+'</span>' : '') +
+          '<span class="spacer"></span>' +
+          '<span class="count'+(n?'':' zero')+'">'+n+' interface'+(n===1?'':'s')+'</span>' +
+          (state.routes.length ? '<span class="count routes'+(legs.length?'':' zero')+'">'+legs.length+' route'+(legs.length===1?'':'s')+'</span>' : '') +
+        '</div>' +
+        (z.desc ? '<div class="attrs" style="border-top:0;border-bottom:1px solid var(--rule-soft)"><span class="attr">'+esc(z.desc)+'</span></div>' : '') +
+        '<div class="ifaces">' +
+          (n ? z.interfaces.map(function(i){
+            var dupe = z.dupes.indexOf(i) !== -1;
+            var rc = routeCountByIface[i] || 0;
+            return '<span class="iface'+(dupe?' dupe':'')+'">'+esc(i) +
+              (state.routes.length ? '<span class="rc">'+rc+'</span>' : '') + '</span>';
+          }).join("") : '<span class="none">No interfaces bound</span>') +
+        '</div>' +
+        (state.routes.length ?
+          '<div class="routebox">' +
+            '<span class="eyebrow">Routes egressing this zone</span>' +
+            (shown.length
+              ? '<div class="rlist">'+shown.map(routeRowHTML).join("")+'</div>' +
+                (legs.length > ROUTE_PREVIEW
+                  ? '<div class="more" data-zone="'+esc(z.name)+'">'+(expanded ? 'Show fewer' : 'Show all '+legs.length)+'</div>'
+                  : '')
+              : '<span class="none">None</span>') +
+          '</div>'
+        : '') +
+        attrHTML(z) +
+        ((z.notes||[]).length ? '<div class="notes">' + z.notes.map(function(nt){
+          return '<div class="note '+nt.level+'"><span class="bullet">'+(nt.level==="info"?"i":"!")+'</span><span>'+esc(nt.text)+'</span></div>';
+        }).join("") + '</div>' : '') +
+      '</div>';
+    }).join("");
+
+    Array.prototype.forEach.call($("cards").querySelectorAll(".more"), function(el){
+      el.addEventListener("click", function(){
+        var k = el.getAttribute("data-zone");
+        state.expanded[k] = !state.expanded[k];
+        render();
+      });
+    });
+  }
+
+  var ROUTE_COLS = ["Node","Table","Prefix","Protocol","Pref","Next-hop","Interface","Zone","Active"];
+
+  function routeRow(l){
+    return [ l.node||"", l.table||"", l.prefix||"", l.protocol||"", l.pref||"",
+             l.nh || (l.iface ? "" : l.kind), l.iface||"",
+             l.zone || (l.iface ? "(unzoned)" : "—"), l.active ? "yes" : "no" ];
+  }
+
+  function renderRouteTable(legs){
+    var head = "<thead><tr>" + ROUTE_COLS.map(function(c){return "<th>"+esc(c)+"</th>";}).join("") + "</tr></thead>";
+    if(!legs.length){
+      $("table").innerHTML = head + "<tbody><tr><td colspan='"+ROUTE_COLS.length+"' class='dim'>" +
+        (state.routes.length ? "No routes match the current filter." : "No route output parsed yet.") +
+        "</td></tr></tbody>";
+      return;
+    }
+    var body = legs.map(function(l){
+      var r = routeRow(l);
+      return "<tr"+(l.active?"":" class='inactive'")+">" + r.map(function(cell,i){
+        var col = ROUTE_COLS[i], cls = ["nowrap"];
+        if(col==="Zone"){
+          if(l.unzoned) cls.push("badc");
+          else if(!l.zone) cls.push("dim");
+          else cls.push("okc");
+        }
+        if(col==="Node" && !cell) cls.push("dim");
+        if(col==="Active" && cell==="no") cls.push("warnc");
+        return "<td class='"+cls.join(" ")+"'>"+esc(cell||"—")+"</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  var IDX_COLS = ["Interface","Zone","Routing table","Routes","Node"];
+
+  function indexRows(){
+    var q = state.filter.trim().toLowerCase();
+    var map = {};
+
+    state.zones.forEach(function(z){
+      z.interfaces.forEach(function(i){
+        map[(z.node||"")+"|"+i] = { iface:i, zone:z.name, node:z.node||"", tables:[], routes:0 };
+      });
+    });
+    state.legs.forEach(function(l){
+      if(!l.iface) return;
+      if(state.activeOnly && !l.active) return;
+      var k = (l.node||"")+"|"+l.iface;
+      if(!map[k]) map[k] = { iface:l.iface, zone:"", node:l.node||"", tables:[], routes:0 };
+      map[k].routes++;
+      if(l.table && map[k].tables.indexOf(l.table) === -1) map[k].tables.push(l.table);
+    });
+
+    var rows = Object.keys(map).map(function(k){
+      var m = map[k];
+      return [ m.iface, m.zone || "(unzoned)", m.tables.join(", "), String(m.routes), m.node ];
+    });
+    rows.sort(function(a,b){ return a[0].localeCompare(b[0], undefined, {numeric:true}); });
+
+    if(state.problemsOnly) rows = rows.filter(function(r){ return r[1] === "(unzoned)" || r[4] === "0"; });
+    if(q) rows = rows.filter(function(r){ return r.join(" ").toLowerCase().indexOf(q) !== -1; });
+    return rows;
+  }
+
+  function renderIndex(){
+    var rows = indexRows();
+    var head = "<thead><tr>" + IDX_COLS.map(function(c){return "<th>"+esc(c)+"</th>";}).join("") + "</tr></thead>";
+    if(!rows.length){
+      $("table").innerHTML = head + "<tbody><tr><td colspan='"+IDX_COLS.length+"' class='dim'>Nothing matches.</td></tr></tbody>";
+      return;
+    }
+    var body = rows.map(function(r){
+      return "<tr>" + r.map(function(cell,i){
+        var col = IDX_COLS[i], cls = ["nowrap"];
+        if(col==="Zone")   cls.push(cell==="(unzoned)" ? "badc" : "okc");
+        if(col==="Routes" && cell==="0") cls.push("warnc");
+        if(!cell) cls.push("dim");
+        return "<td class='"+cls.join(" ")+"'>"+esc(cell||"—")+"</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  /* ============================ EXPORT ============================ */
+
+  function exportCols(){
+    if(state.view === "index")  return IDX_COLS;
+    return ROUTE_COLS;
+  }
+  function exportRows(){
+    if(state.view === "index") return indexRows();
+    if(state.view === "routes") return visibleLegs().map(routeRow);
+    // zones view exports the full route-to-zone join, which is the point of the report
+    var q = state.filter.trim().toLowerCase();
+    return state.legs.filter(function(l){
+      if(state.activeOnly && !l.active) return false;
+      return legMatches(l, q);
+    }).map(routeRow);
+  }
+
+  function toCSV(){
+    var q = function(v){ return '"' + String(v==null?"":v).replace(/"/g,'""') + '"'; };
+    return [exportCols().map(q).join(",")]
+      .concat(exportRows().map(function(r){return r.map(q).join(",");})).join("\n");
+  }
+
+  function toMarkdown(){
+    var cols = exportCols();
+    return ["| "+cols.join(" | ")+" |", "|"+cols.map(function(){return "---";}).join("|")+"|"]
+      .concat(exportRows().map(function(r){
+        return "| "+r.map(function(c){return String(c||"—").replace(/\|/g,"\\|");}).join(" | ")+" |";
+      })).join("\n");
+  }
+
+  function download(name, content, type){
+    var url, revoke = false;
+    if(typeof URL !== "undefined" && URL.createObjectURL){
+      url = URL.createObjectURL(new Blob([content], {type:type})); revoke = true;
+    } else {
+      url = "data:" + type + ";charset=utf-8," + encodeURIComponent(content);
+    }
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    if(revoke) setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function flash(btn, label){
+    var old = btn.textContent; btn.textContent = label;
+    setTimeout(function(){ btn.textContent = old; }, 1400);
+  }
+  function fallbackCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); }catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  /* ============================ WIRING ============================ */
+
+  function mismatchReport(){
+    var zoneIfs  = uniq([].concat.apply([], state.zones.map(function(z){return z.interfaces;})));
+    var routeIfs = uniq(state.legs.map(function(l){return l.iface;}).filter(Boolean));
+
+    var parts = ["The join is on interface name. Neither capture shares one with the other."];
+    parts.push("<br><br><b>In the zone output:</b> " +
+      (zoneIfs.length ? "<code>"+zoneIfs.slice(0,14).map(esc).join("</code> <code>")+"</code>" +
+        (zoneIfs.length>14 ? " and "+(zoneIfs.length-14)+" more" : "")
+        : "none — no <code>Interfaces:</code> list was found"));
+    parts.push("<br><b>In the route output:</b> " +
+      (routeIfs.length ? "<code>"+routeIfs.slice(0,14).map(esc).join("</code> <code>")+"</code>" +
+        (routeIfs.length>14 ? " and "+(routeIfs.length-14)+" more" : "")
+        : "none — no <code>via &lt;interface&gt;</code> next-hops were found"));
+
+    if(!routeIfs.length){
+      parts.push("<br><br>Every route parsed as discard, reject, receive, or with no next-hop line. " +
+        "Check that the indented <code>&gt; to x.x.x.x via ge-0/0/0.0</code> lines survived the paste.");
+    } else if(!zoneIfs.length){
+      parts.push("<br><br>The zone blocks parsed but carried no interfaces. Operational output is needed " +
+        "(<code>show security zones</code>), not <code>show configuration security zones</code>.");
+    } else {
+      parts.push("<br><br>If these are the same interfaces with different unit numbers, the two captures " +
+        "came from different boxes or different times. If they look unrelated, the route capture is " +
+        "probably scoped to one table — try <code>show route</code> with no filter.");
+    }
+    return parts.join("");
+  }
+
+  function showMsg(t,b){ $("msgTitle").textContent=t; $("msgBody").innerHTML=b; $("msg").classList.add("on"); }
+  function hideMsg(){ $("msg").classList.remove("on"); }
+
+  function doParse(){
+    var zText = $("rawZones").value, rText = $("rawRoutes").value;
+    state.zones = parseZones(zText);
+    var pr = parseRoutes(rText);
+    state.routes = pr.routes;
+    state.tables = pr.tables;
+    state.legs = correlate(state.zones, state.routes);
+    state.expanded = {};
+
+    $("zoneState").textContent  = state.zones.length ? state.zones.length + " zones" : "not parsed";
+    $("zoneState").className    = "state" + (state.zones.length ? " ok" : "");
+    $("routeState").textContent = state.routes.length ? state.routes.length + " routes, " + state.tables.length + " tables" : "optional";
+    $("routeState").className   = "state" + (state.routes.length ? " ok" : "");
+
+    if(!state.zones.length && !state.routes.length){
+      $("summary").classList.remove("on"); $("toolbar").classList.remove("on");
+      $("cards").innerHTML = ""; $("table").innerHTML = "";
+      showMsg(zText.trim()||rText.trim() ? "Nothing recognised" : "Nothing to parse",
+        "Zone blocks start with <code>security-zone &lt;name&gt; {</code> (from <code>show configuration security zones</code>). Route output is optional; if present, it should include the table header line " +
+        "(<code>inet.0: 12 destinations, 14 routes</code>) so each route can be attributed to its table. " +
+        "Load the sample to see both formats.");
+      return;
+    }
+    if(!state.zones.length){
+      showMsg("Routes parsed, zones missing",
+        "Routes came through but there is no zone output, so nothing can be attributed to a zone. " +
+        "Paste <code>show security zones</code> into the left pane.");
+    } else if(state.routes.length && !state.legs.some(function(l){ return !!l.zone; })){
+      showMsg("Nothing matched between the two captures", mismatchReport());
+    } else {
+      hideMsg();
+    }
+    $("panes").classList.add("stowed");
+    render();
+  }
+
+  $("parseBtn").addEventListener("click", doParse);
+  $("sampleBtn").addEventListener("click", function(){
+    $("rawZones").value = SAMPLE_ZONES; $("rawRoutes").value = SAMPLE_ROUTES; doParse();
+  });
+  $("clearBtn").addEventListener("click", function(){
+    $("rawZones").value = ""; $("rawRoutes").value = "";
+    state.zones=[]; state.routes=[]; state.legs=[]; state.tables=[]; state.expanded={};
+    $("panes").classList.remove("stowed");
+    $("cards").innerHTML=""; $("table").innerHTML="";
+    $("summary").classList.remove("on"); $("toolbar").classList.remove("on");
+    $("zoneState").textContent="not parsed"; $("zoneState").className="state";
+    $("routeState").textContent="optional"; $("routeState").className="state";
+    hideMsg(); $("rawZones").focus();
+  });
+  ["rawZones","rawRoutes"].forEach(function(id){
+    $(id).addEventListener("paste", function(){ setTimeout(doParse, 30); });
+    $(id).addEventListener("focus", function(){ $("panes").classList.remove("stowed"); });
+  });
+
+  $("filter").addEventListener("input", function(e){ state.filter = e.target.value; render(); });
+  $("activeOnly").addEventListener("change", function(e){ state.activeOnly = e.target.checked; render(); });
+  $("problemsOnly").addEventListener("change", function(e){ state.problemsOnly = e.target.checked; render(); });
+
+  function setView(v){
+    state.view = v;
+    $("viewZones").setAttribute("aria-pressed", String(v==="zones"));
+    $("viewRoutes").setAttribute("aria-pressed", String(v==="routes"));
+    $("viewIndex").setAttribute("aria-pressed", String(v==="index"));
+    render();
+  }
+  $("viewZones").addEventListener("click", function(){ setView("zones"); });
+  $("viewRoutes").addEventListener("click", function(){ setView("routes"); });
+  $("viewIndex").addEventListener("click", function(){ setView("index"); });
+
+  $("csvBtn").addEventListener("click", function(){
+    if(!state.zones.length && !state.legs.length){ showMsg("Nothing to export","Build the report first."); return; }
+    download(state.view==="index" ? "interface-zone-index.csv" : "routes-by-zone.csv", toCSV(), "text/csv");
+  });
+  $("mdBtn").addEventListener("click", function(e){
+    if(!state.zones.length && !state.legs.length){ showMsg("Nothing to copy","Build the report first."); return; }
+    var btn = e.currentTarget, md = toMarkdown();
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(md).then(function(){ flash(btn,"Copied"); },
+        function(){ fallbackCopy(md); flash(btn,"Copied"); });
+    } else { fallbackCopy(md); flash(btn,"Copied"); }
+  });
+
+  /* ============================ SAMPLE ============================ */
+
+  var SAMPLE_ZONES = [
+"security {",
+"    zones {",
+"        functional-zone management {",
+"            interfaces {",
+"                fxp0.0;",
+"            }",
+"        }",
+"        security-zone trust {",
+"            description \"Internal user networks\";",
+"            screen untrust-screen;",
+"            interfaces {",
+"                reth0.0;",
+"                reth0.100;",
+"            }",
+"        }",
+"        security-zone untrust {",
+"            screen untrust-screen;",
+"            interfaces {",
+"                reth1.0;",
+"            }",
+"        }",
+"        security-zone ISP-A-SITE-EDGE {",
+"            description \"Carrier handoff, separate routing instance\";",
+"            interfaces {",
+"                reth2.0;",
+"            }",
+"        }",
+"        security-zone vpn {",
+"            interfaces {",
+"                st0.0;",
+"                st0.1;",
+"            }",
+"        }",
+"        security-zone dmz {",
+"            description \"Public-facing servers\";",
+"        }",
+"    }",
+"}"
+].join("\n");
+
+  var SAMPLE_ROUTES = [
+"inet.0: 11 destinations, 12 routes (11 active, 0 holddown, 0 hidden)",
+"+ = Active Route, - = Last Active, * = Both",
+"",
+"0.0.0.0/0          *[Static/5] 2w3d 04:12:33",
+"                    >  to 203.0.113.254 via reth1.0",
+"10.1.0.0/24        *[Direct/0] 5w0d 11:02:41",
+"                    >  via reth0.0",
+"10.1.0.1/32        *[Local/0] 5w0d 11:02:41",
+"                       Local via reth0.0",
+"10.1.100.0/24      *[Direct/0] 5w0d 11:02:41",
+"                    >  via reth0.100",
+"10.1.100.1/32      *[Local/0] 5w0d 11:02:41",
+"                       Local via reth0.100",
+"10.20.0.0/16       *[Static/5] 1w2d 03:00:12",
+"                    >  to 10.1.0.9 via reth0.0",
+"10.99.0.0/16       *[Static/5] 3d 22:14:05",
+"                    >  via st0.3",
+"172.16.8.0/22      *[Static/5] 6d 01:33:20",
+"                    >  via st0.0",
+"192.0.2.0/24       *[OSPF/10] 4d 09:12:00, metric 20",
+"                    >  to 10.1.0.2 via reth0.0",
+"                       to 10.1.0.3 via reth0.100",
+"192.168.99.0/24     [Static/5] 1w0d 00:00:01",
+"                    >  to 10.1.0.250 via reth0.0",
+"198.51.100.0/24    *[Static/5] 2w3d 04:12:33",
+"                       Reject",
+"203.0.113.0/24     *[Direct/0] 2w3d 04:12:35",
+"                    >  via reth1.0",
+"",
+"ISP-A-SITE-EDGE.inet.0: 4 destinations, 4 routes (4 active, 0 holddown, 0 hidden)",
+"+ = Active Route, - = Last Active, * = Both",
+"",
+"0.0.0.0/0          *[Static/5] 1w4d 02:00:00",
+"                    >  to 198.51.100.1 via reth2.0",
+"198.51.100.0/30    *[Direct/0] 1w4d 02:00:02",
+"                    >  via reth2.0",
+"198.51.100.2/32    *[Local/0] 1w4d 02:00:02",
+"                       Local via reth2.0",
+"10.1.0.0/24        *[Static/5] 1w4d 01:59:40",
+"                    >  to 10.1.0.1 via reth0.0"
+].join("\n");
+
+  window.__parseZones  = parseZones;
+  window.__parseRoutes = parseRoutes;
+
+})();
+</script>
+</body>
+</html>

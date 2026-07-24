@@ -1,0 +1,32 @@
+# Project-internal instructions (not published)
+CLAUDE.md
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node / test harness (tests run on jsdom via npm)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+package-lock.json
+.npm/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OneDrive / sync cruft
+*.tmp
+~$*

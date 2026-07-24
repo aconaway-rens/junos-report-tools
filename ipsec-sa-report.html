@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IPsec SA Report</title>
+<style>
+  :root{
+    --ground:#131a21;
+    --panel:#1b242d;
+    --panel-2:#212d38;
+    --rule:#2c3945;
+    --rule-soft:#243039;
+    --ink:#dfe7ec;
+    --ink-dim:#8296a5;
+    --ink-faint:#5e7182;
+    --in:#4fc3d9;
+    --out:#e0a253;
+    --alert:#e0645f;
+    --ok:#6fb98a;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 80px}
+
+  /* ---------- header ---------- */
+  .masthead{
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;
+    padding-bottom:16px;border-bottom:1px solid var(--rule);
+  }
+  .masthead h1{
+    font-family:var(--mono);
+    font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0;
+  }
+  .cmd{
+    font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);
+    border:1px solid var(--rule);border-radius:3px;padding:2px 7px;
+  }
+  .field-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;margin-bottom:6px}
+  .masthead .spacer{flex:1}
+  .privacy{font-size:12px;color:var(--ink-faint)}
+
+  /* ---------- eyebrow label treatment ---------- */
+  .eyebrow{
+    font-family:var(--mono);font-size:10px;font-weight:600;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);
+  }
+
+  /* ---------- input ---------- */
+  .input-block{margin-top:22px}
+  textarea{
+    width:100%;min-height:190px;resize:vertical;
+    background:var(--panel);color:var(--ink);
+    border:1px solid var(--rule);border-radius:5px;
+    font-family:var(--mono);font-size:12.5px;line-height:1.55;
+    padding:13px 14px;
+  }
+  textarea::placeholder{color:var(--ink-faint)}
+  textarea:focus-visible,button:focus-visible,input:focus-visible{
+    outline:2px solid var(--in);outline-offset:2px;
+  }
+  .input-block.stowed textarea{min-height:74px;height:74px}
+
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;align-items:center}
+  button{
+    font-family:var(--sans);font-size:13px;
+    background:var(--panel-2);color:var(--ink);
+    border:1px solid var(--rule);border-radius:4px;
+    padding:7px 13px;cursor:pointer;
+  }
+  button:hover{border-color:var(--ink-faint)}
+  button.primary{background:var(--in);color:#0d1418;border-color:var(--in);font-weight:600}
+  button.primary:hover{filter:brightness(1.09)}
+  button.ghost{background:transparent}
+  .controls .spacer{flex:1}
+
+  /* ---------- summary strip ---------- */
+  .summary{
+    display:none;margin-top:26px;
+    border:1px solid var(--rule);border-radius:5px;background:var(--panel);
+    padding:15px 17px;
+  }
+  .summary.on{display:block}
+  .stats{display:flex;flex-wrap:wrap;gap:26px 40px}
+  .stat .n{font-family:var(--mono);font-size:25px;line-height:1.1;letter-spacing:-.02em}
+  .stat .n.up{color:var(--ok)}
+  .stat .n.down{color:var(--alert)}
+  .stat .l{margin-top:3px}
+  .algos{
+    margin-top:15px;padding-top:13px;border-top:1px solid var(--rule-soft);
+    display:flex;flex-wrap:wrap;gap:7px;align-items:center;
+  }
+  .chip{
+    font-family:var(--mono);font-size:11.5px;
+    border:1px solid var(--rule);border-radius:99px;padding:3px 10px;color:var(--ink-dim);
+  }
+  .chip.bad{border-color:var(--alert);color:var(--alert)}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{display:none;gap:9px;margin-top:18px;flex-wrap:wrap;align-items:center}
+  .toolbar.on{display:flex}
+  input[type=search]{
+    flex:1;min-width:200px;
+    background:var(--panel);border:1px solid var(--rule);border-radius:4px;
+    color:var(--ink);font-family:var(--mono);font-size:13px;padding:7px 11px;
+  }
+  input[type=search]::placeholder{color:var(--ink-faint)}
+  .seg{display:flex;border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+  .seg button{border:0;border-radius:0;background:transparent;padding:7px 14px}
+  .seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ink);font-weight:600}
+  .toggle{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-dim);cursor:pointer}
+
+  /* ---------- messages ---------- */
+  .msg{
+    display:none;margin-top:24px;border:1px solid var(--rule);border-left:3px solid var(--alert);
+    border-radius:4px;background:var(--panel);padding:14px 16px;
+  }
+  .msg.on{display:block}
+  .msg h3{margin:0 0 5px;font-size:14px;font-weight:600}
+  .msg p{margin:0;font-size:13.5px;color:var(--ink-dim)}
+  .msg code{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+
+  /* ---------- SA card + direction spine (signature) ---------- */
+  .cards{margin-top:22px;display:flex;flex-direction:column;gap:14px}
+  .sa{border:1px solid var(--rule);border-radius:6px;background:var(--panel);overflow:hidden}
+  .sa-head{
+    display:flex;flex-wrap:wrap;align-items:center;gap:9px 14px;
+    padding:12px 16px;border-bottom:1px solid var(--rule-soft);
+  }
+  .sa-name{font-family:var(--mono);font-size:15px;font-weight:600}
+  .sa-head .spacer{flex:1}
+  .tag{
+    font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+    border:1px solid var(--rule);border-radius:3px;padding:2px 8px;color:var(--ink-dim);
+  }
+  .tag.st0{color:var(--ink);border-color:var(--ink-faint)}
+  .state{
+    font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;
+    text-transform:uppercase;padding:3px 9px;border-radius:3px;
+  }
+  .state.up{background:rgba(111,185,138,.14);color:var(--ok)}
+  .state.down{background:rgba(224,100,95,.14);color:var(--alert)}
+  .state.part{background:rgba(224,162,83,.14);color:var(--out)}
+  .state.idle{background:rgba(130,150,165,.14);color:var(--ink-dim)}
+
+  .spine{
+    display:grid;
+    grid-template-columns:minmax(120px,auto) 1fr minmax(120px,auto);
+    align-items:center;gap:0 18px;padding:17px 16px;
+  }
+  .node .eyebrow{display:block;margin-bottom:4px}
+  .node .ip{font-family:var(--mono);font-size:14.5px;letter-spacing:-.01em;word-break:break-all}
+  .node.remote{text-align:right}
+  .lanes{display:flex;flex-direction:column;gap:9px;min-width:0}
+  .lane{
+    border:1px solid var(--rule-soft);border-radius:4px;background:var(--ground);
+    padding:8px 11px;position:relative;
+  }
+  .lane.inbound{border-left:2px solid var(--in)}
+  .lane.outbound{border-right:2px solid var(--out)}
+  .lane-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+  .dir{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+  .lane.inbound .dir{color:var(--in)}
+  .lane.outbound .dir{color:var(--out)}
+  .spi{font-family:var(--mono);font-size:13px}
+  .lane .spacer{flex:1}
+  .crypto{font-family:var(--mono);font-size:12px;color:var(--ink-dim)}
+  .crypto .weak{color:var(--alert)}
+  .life{display:flex;align-items:center;gap:9px;margin-top:7px}
+  .bar{flex:1;height:3px;background:var(--rule);border-radius:99px;overflow:hidden}
+  .bar span{display:block;height:100%;border-radius:99px}
+  .lane.inbound .bar span{background:var(--in)}
+  .lane.outbound .bar span{background:var(--out)}
+  .life .t{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);white-space:nowrap}
+
+  .selectors{
+    display:grid;grid-template-columns:1fr 1fr;gap:0 18px;
+    padding:0 16px 14px;
+  }
+  .sel .ids{font-family:var(--mono);font-size:13px;word-break:break-all}
+  .sel.remote-sel{text-align:right}
+  .sel .raw{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:2px;word-break:break-all}
+
+  .notes{border-top:1px solid var(--rule-soft);padding:10px 16px;display:flex;flex-direction:column;gap:5px}
+  .note{font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
+  .note .bullet{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;flex:0 0 auto;padding-top:1px}
+  .note.warn .bullet{color:var(--alert)}
+  .note.info .bullet{color:var(--ink-faint)}
+  .note.warn{color:var(--ink)}
+  .note.info{color:var(--ink-dim)}
+
+  /* ---------- table view ---------- */
+  .table-wrap{display:none;margin-top:22px;border:1px solid var(--rule);border-radius:6px;overflow:auto}
+  .table-wrap.on{display:block}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+  th{
+    text-align:left;background:var(--panel-2);color:var(--ink-faint);
+    font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+    padding:9px 12px;border-bottom:1px solid var(--rule);position:sticky;top:0;
+  }
+  td{padding:8px 12px;border-bottom:1px solid var(--rule-soft);background:var(--panel)}
+  tr:last-child td{border-bottom:0}
+  td.in-c{color:var(--in)}
+  td.out-c{color:var(--out)}
+  td.bad{color:var(--alert)}
+  td.good{color:var(--ok)}
+
+  .hidden{display:none !important}
+  .foot{margin-top:34px;font-size:12px;color:var(--ink-faint);line-height:1.6}
+  .ver{margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-faint)}
+
+  @media (max-width:760px){
+    .spine{grid-template-columns:1fr;gap:12px}
+    .node.remote{text-align:left}
+    .selectors{grid-template-columns:1fr;gap:10px}
+    .sel.remote-sel{text-align:left}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important;animation:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <h1>IPsec SA Report</h1>
+    <span class="spacer"></span>
+    <span class="privacy">Runs entirely in this page. Nothing is uploaded.</span>
+  </div>
+
+  <div class="input-block" id="inputBlock">
+    <div class="field-head">
+      <label class="eyebrow" for="raw">Paste command output</label>
+      <span class="cmd">show security ipsec security-associations detail</span>
+    </div>
+    <textarea id="raw" spellcheck="false" placeholder="node0:
+--------------------------------------------------------------------------
+  ID: 500001 Virtual-system: root, VPN Name: to-branch-01
+  Local Gateway: 203.0.113.1, Remote Gateway: 198.51.100.5
+  ..."></textarea>
+    <div class="controls">
+      <button class="primary" id="parseBtn">Parse output</button>
+      <button class="ghost" id="sampleBtn">Load sample</button>
+      <button class="ghost" id="clearBtn">Clear</button>
+      <span class="spacer"></span>
+      <button class="ghost" id="csvBtn">Download CSV</button>
+      <button class="ghost" id="mdBtn">Copy Markdown</button>
+    </div>
+  </div>
+
+  <div class="msg" id="msg">
+    <h3 id="msgTitle"></h3>
+    <p id="msgBody"></p>
+  </div>
+
+  <div class="summary" id="summary">
+    <div class="stats" id="stats"></div>
+    <div class="algos" id="algos"></div>
+  </div>
+
+  <div class="toolbar" id="toolbar">
+    <input type="search" id="filter" placeholder="Filter by VPN, st0 unit, gateway, SPI, or algorithm">
+    <label class="toggle"><input type="checkbox" id="problemsOnly"> Problems only</label>
+    <div class="seg">
+      <button id="viewCards" aria-pressed="true">Cards</button>
+      <button id="viewTable" aria-pressed="false">Table</button>
+    </div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="table-wrap" id="tableWrap">
+    <table id="table"></table>
+  </div>
+
+  <p class="foot">
+    Lifetime bars are scaled to the longest hard lifetime in this capture, since the command reports
+    time remaining rather than the configured lifetime. Wildcard proxy IDs (0.0.0.0/0) are normal on a
+    route-based VPN — traffic selection there comes from the routes pointing at the st0 unit, not from
+    the SA.
+  </p>
+  <div class="ver">Version 1.0</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================ PARSER ============================ */
+
+  function parseSAs(text){
+    if(!text || !text.trim()) return [];
+    var lines = text.replace(/\r\n?/g,"\n").split("\n");
+
+    // Slice into blocks that each begin with an "ID:" header line.
+    // Track chassis-cluster "node0:" / "node1:" banners so each block knows its node.
+    var blocks = [], cur = null, node = "";
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      var nm = ln.match(/^\s*(node\d+|re\d+|fpc\d+)\s*:\s*$/i);
+      if(nm){ node = nm[1].toLowerCase(); if(cur){ blocks.push(cur); cur = null; } continue; }
+      if(/^\s*ID:\s*\d+/.test(ln)){
+        if(cur) blocks.push(cur);
+        cur = { node: node, lines: [ln] };
+      } else if(cur){
+        cur.lines.push(ln);
+      }
+    }
+    if(cur) blocks.push(cur);
+
+    return blocks.map(function(b){
+      var sa = parseBlock(b.lines);
+      sa.node = b.node;
+      if(sa.status === "down" && !sa.directions.length && !sa.downReason && sa.node && sa.node !== "node0"){
+        sa.status = "backup";
+      }
+      sa.notes = buildNotes(sa);
+      return sa;
+    });
+  }
+
+  function grab(text, re, idx){
+    var m = text.match(re);
+    return m ? String(m[idx||1]).trim() : "";
+  }
+
+  function parseBlock(blockLines){
+    var whole = blockLines.join("\n");
+
+    // Split off the per-direction sections.
+    var headLines = [], dirs = [], active = null;
+    for(var i=0;i<blockLines.length;i++){
+      var ln = blockLines[i];
+      var dm = ln.match(/^\s*Direction:\s*(inbound|outbound)\b/i);
+      if(dm){
+        if(active) dirs.push(active);
+        active = { dir: dm[1].toLowerCase(), lines: [ln] };
+      } else if(active){
+        active.lines.push(ln);
+      } else {
+        headLines.push(ln);
+      }
+    }
+    if(active) dirs.push(active);
+    var head = headLines.join("\n");
+
+    var sa = {
+      id:          grab(head, /\bID:\s*(\d+)/),
+      vsys:        grab(head, /Virtual-system:\s*([^\s,]+)/),
+      name:        grab(head, /VPN Name:\s*(.+)/).replace(/\s*,\s*$/,"") || "(unnamed)",
+      localGw:     grab(head, /Local Gateway:\s*([^\s,]+)/),
+      remoteGw:    grab(head, /Remote Gateway:\s*([^\s,]+)/),
+      localIdRaw:  grab(head, /Local Identity:\s*(.+)/),
+      remoteIdRaw: grab(head, /Remote Identity:\s*(.+)/),
+      version:     grab(head, /(?:^|\n)\s*Version:\s*(\S+)/),
+      bind:        grab(head, /Bind-interface:\s*(\S+)/),
+      port:        grab(head, /(?:^|\n)\s*Port:\s*(\d+)/),
+      nego:        grab(head, /Nego#:\s*(\d+)/),
+      fail:        grab(head, /Fail#:\s*(\d+)/),
+      // "Tunnel Down Reason" but not "Last Tunnel Down Reason"
+      downReason:  grab(head, /(?:^|\n)\s*Tunnel Down Reason:\s*(.+)/),
+      lastDown:    grab(head, /Last Tunnel Down Reason:\s*(.+)/),
+      tsName:      grab(head, /Traffic-selector:\s*(\S+)/),
+      directions:  []
+    };
+
+    sa.localId  = cleanIdentity(sa.localIdRaw);
+    sa.remoteId = cleanIdentity(sa.remoteIdRaw);
+
+    for(var d=0; d<dirs.length; d++){
+      var t = dirs[d].lines.join("\n");
+      var pae = t.match(/Protocol:\s*([^,\n]+),\s*Authentication:\s*([^,\n]+),\s*Encryption:\s*([^\n]+)/i);
+      var mts = t.match(/Mode:\s*([^,\n]+),\s*Type:\s*([^,\n]+),\s*State:\s*([^,\n]+)/i);
+      sa.directions.push({
+        dir:      dirs[d].dir,
+        spi:      grab(t, /SPI:\s*([^\s,]+)/),
+        auxSpi:   grab(t, /AUX-SPI:\s*([^\s,]+)/),
+        hard:     toInt(grab(t, /Hard lifetime:\s*Expires in\s*(\d+)\s*seconds/i)),
+        soft:     toInt(grab(t, /Soft lifetime:\s*Expires in\s*(\d+)\s*seconds/i)),
+        lifesize: grab(t, /Lifesize Remaining:\s*(.+)/i),
+        mode:     mts ? mts[1].trim() : "",
+        type:     mts ? mts[2].trim() : "",
+        state:    mts ? mts[3].trim() : "",
+        protocol: pae ? pae[1].trim() : "",
+        auth:     pae ? pae[2].trim() : "",
+        enc:      pae ? pae[3].trim() : "",
+        antiReplay: grab(t, /Anti-replay service:\s*([^,\n]+)/i),
+        monitor:  grab(t, /VPN Monitoring:\s*(\S+)/i)
+      });
+    }
+
+    sa.inbound  = sa.directions.filter(function(x){return x.dir==="inbound";})[0]  || null;
+    sa.outbound = sa.directions.filter(function(x){return x.dir==="outbound";})[0] || null;
+
+    var installed = sa.directions.filter(function(x){return isInstalled(x.state);}).length;
+    if(sa.directions.length === 0) sa.status = "down";
+    else if(installed >= 2)        sa.status = "up";
+    else if(installed === 1)       sa.status = "partial";
+    else                           sa.status = "down";
+
+    return sa;
+  }
+
+  function toInt(s){ var n = parseInt(s,10); return isNaN(n) ? null : n; }
+
+  // "not installed" must not count as installed.
+  function isInstalled(s){ return /^installed\b/i.test(String(s||"").trim()); }
+
+  // ipv4_subnet(any:0,[0..7]=192.168.1.0/24)  ->  192.168.1.0/24
+  // ipv4(any:0,[0..3]=10.0.0.1)               ->  10.0.0.1
+  // ipv4_range(...=10.0.0.1-10.0.0.9)         ->  10.0.0.1-10.0.0.9
+  function cleanIdentity(raw){
+    if(!raw) return "";
+    var m = raw.match(/=\s*([^)\s]+)\s*\)/);
+    if(m) return m[1];
+    var any = raw.match(/([0-9a-fA-F:.]+\/\d+)/);
+    if(any) return any[1];
+    return raw.trim();
+  }
+
+  var WEAK_ENC  = /\b(des-cbc|3des-cbc|des\b|null)/i;
+  var WEAK_AUTH = /\b(md5|hmac-md5|sha1|hmac-sha1)/i;
+
+  function buildNotes(sa){
+    var out = [];
+    if(sa.status === "backup"){
+      out.push({level:"info", text:"No SA detail reported on " + sa.node + ". On a chassis cluster that is expected for the backup node — check the primary node's block for the live state."});
+    } else if(sa.status === "down"){
+      out.push({level:"warn", text:"Tunnel is down" + (sa.downReason ? " — " + sa.downReason : "") +
+        (sa.lastDown ? " (last down: " + sa.lastDown + ")" : "")});
+    } else if(sa.status === "partial"){
+      out.push({level:"warn", text:"Only one direction is installed — inbound and outbound SAs are out of step."});
+    }
+    if(!sa.bind){
+      out.push({level:"info", text:"No bind-interface in this block. That points to a policy-based VPN, or output from a platform that omits the field."});
+    }
+    var weakE = sa.directions.filter(function(d){return WEAK_ENC.test(d.enc);});
+    if(weakE.length) out.push({level:"warn", text:"Deprecated encryption in use: " + uniq(weakE.map(function(d){return d.enc;})).join(", ")});
+    var weakA = sa.directions.filter(function(d){return WEAK_AUTH.test(d.auth);});
+    if(weakA.length) out.push({level:"warn", text:"Legacy authentication in use: " + uniq(weakA.map(function(d){return d.auth;})).join(", ")});
+
+    if(/^1$|v1/i.test(sa.version)) out.push({level:"info", text:"Negotiated with IKEv1."});
+
+    var wildLocal  = /^0\.0\.0\.0\/0$|^::\/0$/.test(sa.localId);
+    var wildRemote = /^0\.0\.0\.0\/0$|^::\/0$/.test(sa.remoteId);
+    if(wildLocal && wildRemote){
+      out.push({level:"info", text:"Wildcard proxy IDs on both sides — traffic selection comes from the routes pointing at " + (sa.bind || "the tunnel interface") + ", not from this SA."});
+    } else if(sa.localId || sa.remoteId){
+      out.push({level:"info", text:"Scoped proxy IDs: local " + (sa.localId||"—") + ", remote " + (sa.remoteId||"—") + ". Both peers must match these exactly."});
+    }
+
+    var mismatch = sa.inbound && sa.outbound &&
+      (sa.inbound.enc !== sa.outbound.enc || sa.inbound.auth !== sa.outbound.auth);
+    if(mismatch) out.push({level:"warn", text:"Inbound and outbound are using different algorithms."});
+
+    var f = parseInt(sa.fail,10);
+    if(f > 0) out.push({level:"warn", text:"Negotiation failures recorded: " + f});
+
+    var short = sa.directions.filter(function(d){return d.hard !== null && d.hard < 120;});
+    if(short.length) out.push({level:"info", text:"Rekey is imminent — under two minutes of hard lifetime remaining."});
+
+    return out;
+  }
+
+  function uniq(a){ return a.filter(function(v,i){return a.indexOf(v)===i;}); }
+
+  /* ============================ RENDER ============================ */
+
+  var state = { sas: [], view: "cards", filter: "", problemsOnly: false, maxHard: 3600 };
+
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){
+    return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+    });
+  }
+  function fmtDur(sec){
+    if(sec===null||sec===undefined) return "—";
+    var h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+    if(h) return h+"h "+String(m).padStart(2,"0")+"m";
+    if(m) return m+"m "+String(s).padStart(2,"0")+"s";
+    return s+"s";
+  }
+
+  function hasProblem(sa){
+    return sa.status === "down" || sa.status === "partial" ||
+           sa.notes.some(function(n){return n.level==="warn";});
+  }
+
+  function visible(){
+    var q = state.filter.trim().toLowerCase();
+    return state.sas.filter(function(sa){
+      if(state.problemsOnly && !hasProblem(sa)) return false;
+      if(!q) return true;
+      var hay = [sa.name, sa.bind, sa.localGw, sa.remoteGw, sa.localId, sa.remoteId, sa.id, sa.version, sa.node]
+        .concat(sa.directions.map(function(d){return d.spi+" "+d.enc+" "+d.auth+" "+d.protocol;}))
+        .join(" ").toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+  }
+
+  function render(){
+    var list = visible();
+    renderSummary();
+    if(state.view === "cards"){
+      $("cards").classList.remove("hidden");
+      $("tableWrap").classList.remove("on");
+      renderCards(list);
+    } else {
+      $("cards").classList.add("hidden");
+      $("tableWrap").classList.add("on");
+      renderTable(list);
+    }
+  }
+
+  function renderSummary(){
+    var sas = state.sas;
+    if(!sas.length){ $("summary").classList.remove("on"); $("toolbar").classList.remove("on"); return; }
+    $("summary").classList.add("on");
+    $("toolbar").classList.add("on");
+
+    var up = sas.filter(function(s){return s.status==="up";}).length;
+    var down = sas.filter(function(s){return s.status==="down";}).length;
+    var part = sas.filter(function(s){return s.status==="partial";}).length;
+    var iface = uniq(sas.map(function(s){return s.bind;}).filter(Boolean)).length;
+    var peers = uniq(sas.map(function(s){return s.remoteGw;}).filter(Boolean)).length;
+
+    var cells = [
+      {n:sas.length, l:"Security associations"},
+      {n:up,   l:"Up", cls:"up"},
+      {n:part, l:"One direction only"},
+      {n:down, l:"Down", cls:down?"down":""},
+      {n:iface, l:"Tunnel interfaces"},
+      {n:peers, l:"Distinct peers"}
+    ];
+    $("stats").innerHTML = cells.map(function(c){
+      return '<div class="stat"><div class="n '+(c.cls||"")+'">'+c.n+'</div><div class="l eyebrow">'+esc(c.l)+'</div></div>';
+    }).join("");
+
+    var algos = [];
+    sas.forEach(function(s){ s.directions.forEach(function(d){
+      if(d.enc)  algos.push({v:d.enc,  bad:WEAK_ENC.test(d.enc)});
+      if(d.auth) algos.push({v:d.auth, bad:WEAK_AUTH.test(d.auth)});
+    });});
+    var seen = {}, chips = [];
+    algos.forEach(function(a){ if(!seen[a.v]){ seen[a.v]=1; chips.push(a); } });
+    $("algos").innerHTML = '<span class="eyebrow">Algorithms in use</span>' +
+      (chips.length ? chips.map(function(c){
+        return '<span class="chip'+(c.bad?" bad":"")+'">'+esc(c.v)+'</span>';
+      }).join("") : '<span class="chip">none reported</span>');
+  }
+
+  function laneHTML(d, arrow){
+    if(!d) return '<div class="lane"><div class="lane-top"><span class="dir" style="color:var(--ink-faint)">missing</span>' +
+      '<span class="crypto">no SA in this direction</span></div></div>';
+    var weakE = WEAK_ENC.test(d.enc), weakA = WEAK_AUTH.test(d.auth);
+    var pct = (d.hard===null) ? 0 : Math.max(2, Math.min(100, Math.round(d.hard / state.maxHard * 100)));
+    return '' +
+      '<div class="lane '+d.dir+'">' +
+        '<div class="lane-top">' +
+          '<span class="dir">'+arrow+' '+esc(d.dir)+'</span>' +
+          '<span class="spi">'+esc(d.spi||"—")+'</span>' +
+          (isInstalled(d.state) ? '' : '<span class="crypto weak">'+esc(d.state||"state unknown")+'</span>') +
+          '<span class="spacer"></span>' +
+          '<span class="crypto">' +
+            '<span class="'+(weakE?"weak":"")+'">'+esc(d.enc||"—")+'</span> / ' +
+            '<span class="'+(weakA?"weak":"")+'">'+esc(d.auth||"—")+'</span>' +
+            (d.protocol ? ' &middot; '+esc(d.protocol) : '') +
+          '</span>' +
+        '</div>' +
+        '<div class="life">' +
+          '<div class="bar" title="Hard lifetime remaining, scaled to the longest in this capture"><span style="width:'+pct+'%"></span></div>' +
+          '<span class="t">hard '+fmtDur(d.hard)+' &middot; soft '+fmtDur(d.soft)+'</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderCards(list){
+    if(!list.length){
+      $("cards").innerHTML = '<div class="msg on" style="border-left-color:var(--rule)"><h3>Nothing matches</h3>' +
+        '<p>Clear the filter or switch off "Problems only" to see all security associations.</p></div>';
+      return;
+    }
+    $("cards").innerHTML = list.map(function(sa){
+      var map = {up:["up","up"], partial:["part","half"], backup:["idle","backup"], down:["down","down"]};
+      var stateCls = (map[sa.status]||map.down)[0];
+      var stateTxt = (map[sa.status]||map.down)[1];
+      return '' +
+      '<div class="sa">' +
+        '<div class="sa-head">' +
+          '<span class="sa-name">'+esc(sa.name)+'</span>' +
+          (sa.node ? '<span class="tag">'+esc(sa.node)+'</span>' : '') +
+          (sa.bind ? '<span class="tag st0">'+esc(sa.bind)+'</span>' : '') +
+          (sa.version ? '<span class="tag">IKE '+esc(sa.version.replace(/^IKEv?/i,""))+'</span>' : '') +
+          (sa.tsName ? '<span class="tag">ts '+esc(sa.tsName)+'</span>' : '') +
+          '<span class="tag">id '+esc(sa.id)+'</span>' +
+          '<span class="spacer"></span>' +
+          '<span class="state '+stateCls+'">'+stateTxt+'</span>' +
+        '</div>' +
+        '<div class="spine">' +
+          '<div class="node local"><span class="eyebrow">Local gateway</span><span class="ip">'+esc(sa.localGw||"—")+'</span></div>' +
+          '<div class="lanes">' +
+            laneHTML(sa.outbound, "&rarr;") +
+            laneHTML(sa.inbound, "&larr;") +
+          '</div>' +
+          '<div class="node remote"><span class="eyebrow">Remote gateway</span><span class="ip">'+esc(sa.remoteGw||"—")+'</span></div>' +
+        '</div>' +
+        '<div class="selectors">' +
+          '<div class="sel"><span class="eyebrow">Local identity</span>' +
+            '<div class="ids">'+esc(sa.localId||"—")+'</div>' +
+            (sa.localIdRaw ? '<div class="raw">'+esc(sa.localIdRaw)+'</div>' : '') +
+          '</div>' +
+          '<div class="sel remote-sel"><span class="eyebrow">Remote identity</span>' +
+            '<div class="ids">'+esc(sa.remoteId||"—")+'</div>' +
+            (sa.remoteIdRaw ? '<div class="raw">'+esc(sa.remoteIdRaw)+'</div>' : '') +
+          '</div>' +
+        '</div>' +
+        (sa.notes.length ? '<div class="notes">' + sa.notes.map(function(n){
+          return '<div class="note '+n.level+'"><span class="bullet">'+(n.level==="warn"?"!":"i")+'</span><span>'+esc(n.text)+'</span></div>';
+        }).join("") + '</div>' : '') +
+      '</div>';
+    }).join("");
+  }
+
+  var COLS = ["Node","VPN","st0","ID","Local GW","Remote GW","Local ID","Remote ID","IKE","Dir","SPI","Encryption","Auth","State","Hard","Soft"];
+
+  function rowsFor(sa){
+    var ds = sa.directions.length ? sa.directions : [{dir:"—"}];
+    return ds.map(function(d){
+      return [sa.node||"", sa.name, sa.bind||"", sa.id, sa.localGw||"", sa.remoteGw||"",
+              sa.localId||"", sa.remoteId||"", sa.version||"",
+              d.dir||"", d.spi||"", d.enc||"", d.auth||"", d.state||"",
+              d.hard===null||d.hard===undefined?"":fmtDur(d.hard),
+              d.soft===null||d.soft===undefined?"":fmtDur(d.soft)];
+    });
+  }
+
+  function renderTable(list){
+    var head = "<thead><tr>" + COLS.map(function(c){return "<th>"+esc(c)+"</th>";}).join("") + "</tr></thead>";
+    var body = list.map(function(sa){
+      return rowsFor(sa).map(function(r){
+        return "<tr>" + r.map(function(cell,i){
+          var col = COLS[i], cls = "";
+          if(col==="Dir")        cls = cell==="inbound" ? "in-c" : (cell==="outbound" ? "out-c" : "");
+          if(col==="Encryption" && WEAK_ENC.test(cell))  cls = "bad";
+          if(col==="Auth"       && WEAK_AUTH.test(cell)) cls = "bad";
+          if(col==="State" && cell)  cls = isInstalled(cell) ? "good" : "bad";
+          return "<td"+(cls?' class="'+cls+'"':"")+">"+esc(cell||"—")+"</td>";
+        }).join("") + "</tr>";
+      }).join("");
+    }).join("");
+    $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  /* ============================ EXPORT ============================ */
+
+  function allRows(){
+    var out = [];
+    visible().forEach(function(sa){ rowsFor(sa).forEach(function(r){ out.push(r); }); });
+    return out;
+  }
+
+  function toCSV(){
+    var q = function(v){ return '"' + String(v==null?"":v).replace(/"/g,'""') + '"'; };
+    return [COLS.map(q).join(",")].concat(allRows().map(function(r){return r.map(q).join(",");})).join("\n");
+  }
+
+  function toMarkdown(){
+    var rows = allRows();
+    return ["| "+COLS.join(" | ")+" |", "|"+COLS.map(function(){return "---";}).join("|")+"|"]
+      .concat(rows.map(function(r){return "| "+r.map(function(c){return String(c||"—").replace(/\|/g,"\\|");}).join(" | ")+" |";}))
+      .join("\n");
+  }
+
+  function download(name, content, type){
+    var url, revoke = false;
+    if(typeof URL !== "undefined" && URL.createObjectURL){
+      url = URL.createObjectURL(new Blob([content], {type:type}));
+      revoke = true;
+    } else {
+      url = "data:" + type + ";charset=utf-8," + encodeURIComponent(content);
+    }
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    if(revoke) setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function flash(btn, label){
+    var old = btn.textContent;
+    btn.textContent = label;
+    setTimeout(function(){ btn.textContent = old; }, 1400);
+  }
+
+  /* ============================ WIRING ============================ */
+
+  function showMsg(title, body){
+    $("msgTitle").textContent = title;
+    $("msgBody").innerHTML = body;
+    $("msg").classList.add("on");
+  }
+  function hideMsg(){ $("msg").classList.remove("on"); }
+
+  function doParse(){
+    var txt = $("raw").value;
+    var sas = parseSAs(txt);
+    state.sas = sas;
+
+    var hards = [];
+    sas.forEach(function(s){ s.directions.forEach(function(d){ if(d.hard) hards.push(d.hard); }); });
+    state.maxHard = hards.length ? Math.max.apply(null, hards) : 3600;
+
+    if(!sas.length){
+      $("summary").classList.remove("on");
+      $("toolbar").classList.remove("on");
+      $("cards").innerHTML = "";
+      $("table").innerHTML = "";
+      if(txt.trim()){
+        showMsg("No security associations found",
+          "This reads the <code>detail</code> form of the command. The plain " +
+          "<code>show security ipsec security-associations</code> table leaves out the bind interface, " +
+          "identities, and lifetimes, so there is nothing here to report on. Re-run it with " +
+          "<code>detail</code> and paste again.");
+      } else {
+        showMsg("Nothing to parse", "Paste the command output above, or load the sample to see the format.");
+      }
+      return;
+    }
+    hideMsg();
+    $("inputBlock").classList.add("stowed");
+    render();
+  }
+
+  $("parseBtn").addEventListener("click", doParse);
+  $("clearBtn").addEventListener("click", function(){
+    $("raw").value = ""; state.sas = [];
+    $("inputBlock").classList.remove("stowed");
+    $("cards").innerHTML = ""; $("table").innerHTML = "";
+    $("summary").classList.remove("on"); $("toolbar").classList.remove("on");
+    hideMsg(); $("raw").focus();
+  });
+  $("sampleBtn").addEventListener("click", function(){
+    $("raw").value = SAMPLE; doParse();
+  });
+  $("raw").addEventListener("paste", function(){ setTimeout(doParse, 30); });
+  $("raw").addEventListener("focus", function(){ $("inputBlock").classList.remove("stowed"); });
+
+  $("filter").addEventListener("input", function(e){ state.filter = e.target.value; render(); });
+  $("problemsOnly").addEventListener("change", function(e){ state.problemsOnly = e.target.checked; render(); });
+  $("viewCards").addEventListener("click", function(){
+    state.view="cards"; $("viewCards").setAttribute("aria-pressed","true");
+    $("viewTable").setAttribute("aria-pressed","false"); render();
+  });
+  $("viewTable").addEventListener("click", function(){
+    state.view="table"; $("viewTable").setAttribute("aria-pressed","true");
+    $("viewCards").setAttribute("aria-pressed","false"); render();
+  });
+  $("csvBtn").addEventListener("click", function(){
+    if(!state.sas.length){ showMsg("Nothing to export","Parse some output first."); return; }
+    download("ipsec-sa-report.csv", toCSV(), "text/csv");
+  });
+  $("mdBtn").addEventListener("click", function(e){
+    if(!state.sas.length){ showMsg("Nothing to copy","Parse some output first."); return; }
+    var btn = e.currentTarget;
+    var md = toMarkdown();
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(md).then(function(){ flash(btn,"Copied"); },
+        function(){ fallbackCopy(md); flash(btn,"Copied"); });
+    } else { fallbackCopy(md); flash(btn,"Copied"); }
+  });
+
+  function fallbackCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); }catch(err){}
+    document.body.removeChild(ta);
+  }
+
+  /* ============================ SAMPLE ============================ */
+
+  var SAMPLE = [
+"node0:",
+"--------------------------------------------------------------------------",
+"  ID: 500001 Virtual-system: root, VPN Name: to-branch-01",
+"  Local Gateway: 203.0.113.1, Remote Gateway: 198.51.100.5",
+"  Local Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)",
+"  Remote Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)",
+"  Version: IKEv2",
+"  DF-bit: clear, Copy-Outer-DSCP Disabled, Bind-interface: st0.0",
+"  Port: 500, Nego#: 4, Fail#: 0, Def-Del#: 0 Flag: 0x600a29",
+"  Last Tunnel Down Reason: Delete payload received",
+"    Direction: inbound, SPI: 0x0e5f9dd1, AUX-SPI: 0",
+"                              , VPN Monitoring: -",
+"      Hard lifetime: Expires in 2841 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 2234 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: installed",
+"      Protocol: ESP, Authentication: hmac-sha256-128, Encryption: aes-cbc (256 bits)",
+"      Anti-replay service: counter-based enabled, Replay window size: 64",
+"    Direction: outbound, SPI: 0x9e13e1b6, AUX-SPI: 0",
+"                              , VPN Monitoring: -",
+"      Hard lifetime: Expires in 2841 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 2211 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: installed",
+"      Protocol: ESP, Authentication: hmac-sha256-128, Encryption: aes-cbc (256 bits)",
+"      Anti-replay service: counter-based enabled, Replay window size: 64",
+"",
+"  ID: 500002 Virtual-system: root, VPN Name: to-partner-dc",
+"  Local Gateway: 203.0.113.1, Remote Gateway: 192.0.2.44",
+"  Local Identity: ipv4_subnet(any:0,[0..7]=10.20.0.0/16)",
+"  Remote Identity: ipv4_subnet(any:0,[0..7]=172.16.8.0/22)",
+"  Version: IKEv1",
+"  DF-bit: clear, Bind-interface: st0.1",
+"  Port: 4500, Nego#: 12, Fail#: 3, Def-Del#: 0 Flag: 0x600a29",
+"    Direction: inbound, SPI: 0x3c11ab90, AUX-SPI: 0",
+"                              , VPN Monitoring: -",
+"      Hard lifetime: Expires in 604 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 121 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: installed",
+"      Protocol: ESP, Authentication: hmac-sha1-96, Encryption: 3des-cbc (24 bytes)",
+"      Anti-replay service: counter-based enabled, Replay window size: 64",
+"    Direction: outbound, SPI: 0x7f0d2e55, AUX-SPI: 0",
+"                              , VPN Monitoring: -",
+"      Hard lifetime: Expires in 604 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 118 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: installed",
+"      Protocol: ESP, Authentication: hmac-sha1-96, Encryption: 3des-cbc (24 bytes)",
+"      Anti-replay service: counter-based enabled, Replay window size: 64",
+"",
+"  ID: 500003 Virtual-system: root, VPN Name: to-branch-07",
+"  Local Gateway: 203.0.113.1, Remote Gateway: 198.51.100.91",
+"  Local Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)",
+"  Remote Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)",
+"  Version: IKEv2",
+"  Bind-interface: st0.2",
+"  Port: 500, Nego#: 0, Fail#: 0, Def-Del#: 0 Flag: 0x600a29",
+"  Tunnel Down Reason: SA not initiated",
+"",
+"  ID: 500004 Virtual-system: root, VPN Name: to-cloud-vpc-a",
+"  Local Gateway: 203.0.113.1, Remote Gateway: 198.51.100.200",
+"  Local Identity: ipv4_subnet(any:0,[0..7]=10.30.0.0/16)",
+"  Remote Identity: ipv4_subnet(any:0,[0..7]=10.99.0.0/16)",
+"  Version: IKEv2",
+"  Traffic-selector: ts-vpc-a",
+"  DF-bit: clear, Bind-interface: st0.3",
+"  Port: 4500, Nego#: 2, Fail#: 0, Def-Del#: 0 Flag: 0x600a29",
+"    Direction: inbound, SPI: 0xc4a71f02, AUX-SPI: 0",
+"                              , VPN Monitoring: U",
+"      Hard lifetime: Expires in 3402 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 2790 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: installed",
+"      Protocol: ESP, Authentication: hmac-sha256-128, Encryption: aes-gcm (256 bits)",
+"      Anti-replay service: counter-based enabled, Replay window size: 64",
+"    Direction: outbound, SPI: 0x18be4477, AUX-SPI: 0",
+"                              , VPN Monitoring: U",
+"      Hard lifetime: Expires in 3402 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 2801 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: not installed",
+"      Protocol: ESP, Authentication: hmac-sha256-128, Encryption: aes-gcm (256 bits)",
+"      Anti-replay service: counter-based enabled, Replay window size: 64"
+].join("\n");
+
+  // expose for testing
+  window.__parseSAs = parseSAs;
+
+})();
+</script>
+</body>
+</html>
