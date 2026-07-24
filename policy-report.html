@@ -178,7 +178,7 @@ from-zone trust to-zone untrust {
   <p class="foot">
     The report surfaces from-zone, to-zone, source, destination, and application values from either policy-block output or configuration-style <code>set security policies ...</code> lines. If the address-book config is pasted, named values and nested address sets are resolved recursively when possible.
   </p>
-  <div class="ver">Version 1.0</div>
+  <div class="ver">Version 1.0.1</div>
 </div>
 
 <script>
@@ -224,49 +224,69 @@ from-zone trust to-zone untrust {
   }
 
   function parseAddressBook(text){
-    var addresses = {};
-    var sets = {};
+    var addresses = {};   // name -> prefix string
+    var sets = {};        // name -> array of member tokens (address names, nested set names, or literals)
     var lines = String(text||"").replace(/\r\n?/g,"\n").split("\n");
+    var stack = [];       // address-set names currently open (block form)
 
-    function parseBody(bodyText){
-      var bodyLines = String(bodyText||"").replace(/\r\n?/g,"\n").split("\n");
-      var i = 0;
-      while(i < bodyLines.length){
-        var ln = bodyLines[i].trim();
-        if(!ln || /^\/\//.test(ln)){ i++; continue; }
-        var m = ln.match(/^address\s+([A-Za-z0-9._-]+)\s+([^\s;]+)\s*;?$/);
-        if(m){ addresses[m[1]] = m[2]; i++; continue; }
-        var sm = ln.match(/^address-set\s+([A-Za-z0-9._-]+)\s*\{$/);
-        if(sm){
-          var body = [];
-          var depth = 1;
-          var j = i + 1;
-          while(j < bodyLines.length && depth > 0){
-            var line = bodyLines[j];
-            body.push(line);
-            depth += (line.match(/\{/g)||[]).length - (line.match(/\}/g)||[]).length;
-            j++;
-          }
-          sets[sm[1]] = parseBody(body.join("\n"));
-          i = j;
-          continue;
-        }
-        var lm = ln.match(/^(?:address-address|address|address-set)\s*\[(.*?)\]\s*;?$/);
-        if(lm){
-          splitTokens(lm[2]).forEach(function(token){ if(token && token !== "any") { if(!addresses[token] && !sets[token]) { if(!sets[token]) sets[token] = []; } } });
-        }
-        i++;
-      }
-      return Object.keys(addresses).concat(Object.keys(sets));
+    function ensureSet(name){ if(!sets[name]) sets[name] = []; return sets[name]; }
+    function addMembers(name, tokens){
+      var arr = ensureSet(name);
+      tokens.forEach(function(t){
+        if(t && t !== "any" && arr.indexOf(t) === -1) arr.push(t);
+      });
     }
 
-    parseBody(lines.join("\n"));
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i].trim();
+      if(!ln || /^\/\//.test(ln)) continue;
+
+      // ---- configuration-style "set ..." lines ----
+      var sSetMem = ln.match(/^set\s+.*?\baddress-set\s+([A-Za-z0-9._-]+)\s+(?:address|address-set)\s+(.+?)\s*;?$/i);
+      if(sSetMem){ addMembers(sSetMem[1], splitTokens(sSetMem[2])); continue; }
+      var sAddr = ln.match(/^set\s+.*?\baddress\s+([A-Za-z0-9._-]+)\s+([0-9A-Fa-f:.\/]+)\s*;?$/i);
+      if(sAddr){ addresses[sAddr[1]] = sAddr[2]; continue; }
+      var sSetDecl = ln.match(/^set\s+.*?\baddress-set\s+([A-Za-z0-9._-]+)\s*;?$/i);
+      if(sSetDecl){ ensureSet(sSetDecl[1]); continue; }
+
+      // ---- block form: "address-set NAME {" (definition, and a member of any enclosing set) ----
+      var open = ln.match(/^address-set\s+([A-Za-z0-9._-]+)\s*\{$/i);
+      if(open){
+        if(stack.length) addMembers(stack[stack.length-1], [open[1]]);
+        ensureSet(open[1]);
+        stack.push(open[1]);
+        continue;
+      }
+
+      // ---- block form: "address NAME PREFIX;" at definition level ----
+      var gAddr = ln.match(/^address\s+([A-Za-z0-9._-]+)\s+([0-9A-Fa-f:.\/]+)\s*;$/i);
+      if(gAddr && !stack.length){ addresses[gAddr[1]] = gAddr[2]; continue; }
+
+      // ---- inside a set: member lines (address NAME; / address [ a b ]; / legacy address-address [ ... ];) ----
+      if(stack.length){
+        var mem = ln.match(/^(?:address-address|address-set|address)\s+(.+?)\s*;$/i);
+        if(mem){ addMembers(stack[stack.length-1], splitTokens(mem[1])); continue; }
+      }
+
+      // ---- a closing brace ends the innermost open set ----
+      if(/^\}/.test(ln)){ if(stack.length) stack.pop(); continue; }
+    }
+
     return { addresses: addresses, sets: sets };
+  }
+
+  function isIpLiteral(s){
+    // IPv4 address or CIDR, e.g. 198.51.100.0/24 or 192.0.2.10
+    if(/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(s)) return true;
+    // IPv6 address or CIDR (must contain a colon; hex/colon plus optional prefix length)
+    if(s.indexOf(":") !== -1 && /^[0-9A-Fa-f:]+(\/\d{1,3})?$/.test(s)) return true;
+    return false;
   }
 
   function classifyToken(token){
     var s = String(token||"").trim();
     if(!s) return "other";
+    if(isIpLiteral(s)) return "addr";
     if(/(^|\s)(address|addr|host|network|subnet|ip|ip-prefix)$/i.test(s)) return "addr";
     if(/set|group|collection/i.test(s)) return "set";
     if(/junos-|app|application/i.test(s)) return "app";
@@ -683,6 +703,7 @@ from-zone trust to-zone untrust {
   }
 
   window.__parsePolicies = parsePolicies;
+  window.__parseAddressBook = parseAddressBook;
 })();
 </script>
 </body>
