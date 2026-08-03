@@ -130,6 +130,20 @@
   td.badc{color:var(--alert)}
   td.okc{color:var(--ok)}
 
+  .diagram-wrap{display:none;margin-top:22px;border:1px solid var(--rule);border-radius:6px;background:var(--panel);overflow:hidden}
+  .diagram-wrap.on{display:block}
+  .dgm-bar{display:flex;align-items:center;gap:14px 18px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--rule-soft)}
+  .dgm-bar .spacer{flex:1}
+  .dgm-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--ink-dim)}
+  .dgm-legend .k{display:inline-flex;align-items:center;gap:5px}
+  .dgm-legend .grp{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .dgm-legend .sw{width:11px;height:11px;border-radius:2px;display:inline-block;border:1px solid var(--rule)}
+  .dgm-legend .sw.dash{background:transparent;border-style:dashed}
+  #diagram{overflow:auto;padding:8px 6px}
+  #diagram svg{display:block}
+  #diagram text{font-family:var(--mono)}
+  #diagram .none{padding:24px;color:var(--ink-faint);font-size:13px}
+
   .hidden{display:none !important}
   .foot{margin-top:34px;font-size:12px;color:var(--ink-faint);line-height:1.6}
   .ver{margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-faint)}
@@ -214,6 +228,7 @@ set security zones security-zone trust interfaces reth0.100"></textarea>
       <button id="viewZones" aria-pressed="true">Zones</button>
       <button id="viewRoutes" aria-pressed="false">Routes</button>
       <button id="viewIndex" aria-pressed="false">Interface index</button>
+      <button id="viewDiagram" aria-pressed="false">Diagram</button>
     </div>
   </div>
 
@@ -223,13 +238,37 @@ set security zones security-zone trust interfaces reth0.100"></textarea>
     <table id="table"></table>
   </div>
 
+  <div class="diagram-wrap" id="diagramWrap">
+    <div class="dgm-bar">
+      <span class="eyebrow" id="dgmCaption"></span>
+      <span class="dgm-legend">
+        <span class="grp">Links</span>
+        <span class="k"><span class="sw" style="background:var(--in)"></span>ethernet</span>
+        <span class="k"><span class="sw" style="background:var(--ok)"></span>reth / ae</span>
+        <span class="k"><span class="sw" style="background:var(--out)"></span>tunnel</span>
+        <span class="k"><span class="sw" style="background:var(--ink-dim)"></span>mgmt</span>
+        <span class="k"><span class="sw" style="background:var(--ink-faint)"></span>other</span>
+      </span>
+      <span class="dgm-legend">
+        <span class="grp">Zones</span>
+        <span class="k"><span class="sw" style="background:var(--ink-faint)"></span>zone group</span>
+        <span class="k"><span class="sw" style="background:var(--out)"></span>functional</span>
+        <span class="k"><span class="sw" style="background:var(--alert)"></span>unzoned / conflict</span>
+        <span class="k"><span class="sw dash"></span>no interfaces</span>
+      </span>
+      <span class="spacer"></span>
+      <button class="ghost" id="svgBtn">Download SVG</button>
+    </div>
+    <div id="diagram"></div>
+  </div>
+
   <p class="foot">
     Routes have no zone of their own — the join is <code>route → egress interface → zone</code>, so a route
     is attributed to a zone only when its next-hop resolves to an interface that appears in the zone output.
     Discard, reject, and receive routes have no egress interface and are listed without a zone. Paste both
     captures from the same box at the same time; a stale route paste will attribute traffic to the wrong place.
   </p>
-  <div class="ver">Version 1.0</div>
+  <div class="ver">Version 1.1</div>
 </div>
 
 <script>
@@ -544,11 +583,14 @@ set security zones security-zone trust interfaces reth0.100"></textarea>
 
   function render(){
     renderSummary();
-    $("cards").classList.toggle("hidden", state.view !== "zones");
-    $("tableWrap").classList.toggle("on", state.view !== "zones");
-    if(state.view === "zones")       renderZoneCards(visibleZones());
-    else if(state.view === "routes") renderRouteTable(visibleLegs());
-    else                             renderIndex();
+    var v = state.view;
+    $("cards").classList.toggle("hidden", v !== "zones");
+    $("tableWrap").classList.toggle("on", v === "routes" || v === "index");
+    $("diagramWrap").classList.toggle("on", v === "diagram");
+    if(v === "zones")       renderZoneCards(visibleZones());
+    else if(v === "routes") renderRouteTable(visibleLegs());
+    else if(v === "index")  renderIndex();
+    else                    renderDiagram();
   }
 
   function renderSummary(){
@@ -757,6 +799,230 @@ set security zones security-zone trust interfaces reth0.100"></textarea>
     $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
   }
 
+  /* ============================ DIAGRAM ============================ */
+
+  // Palette resolved to literal hex so a downloaded .svg is self-contained
+  // (var(--x) does not resolve outside this document). Keep in sync with :root.
+  var COL = {
+    panel:"#1b242d", panel2:"#212d38", ground:"#131a21",
+    rule:"#2c3945", ink:"#dfe7ec", inkDim:"#8296a5", inkFaint:"#5e7182",
+    in:"#4fc3d9", out:"#e0a253", alert:"#e0645f", ok:"#6fb98a"
+  };
+  var CHW = 6.6;   // approx width of one monospace char at 11px
+  var DGM_ROUTE_CAP = 7;
+
+  // The zone container groups its interfaces. It carries zone *state* only —
+  // a plain rule for an ordinary security zone, so the interface-box colours
+  // (link type) are what read. Faults and functional zones still stand out.
+  function containerColor(it){
+    if(it.unzoned || it.danger) return COL.alert;
+    if(it.kind === "functional") return COL.out;
+    return COL.inkFaint;
+  }
+
+  // Connectors are coloured by interface type, not by zone. The Junos prefix
+  // tells us the link's nature: a secure-tunnel st0 reads differently from a
+  // redundant-ethernet bond or a plain physical port. Zone semantics stay on
+  // the box border; link type stays on the wire.
+  function linkClass(ifn){
+    var n = String(ifn||"").toLowerCase();
+    if(/^(st|gr|ip|lt|mt|vt)/.test(n))          return { t:"tunnel",   c:COL.out };
+    if(/^(reth|ae)/.test(n))                     return { t:"reth / ae", c:COL.ok };
+    if(/^(ge|xe|et|fe|em|mge|xle|ce)/.test(n))   return { t:"ethernet", c:COL.in };
+    if(/^(fxp|me|vme)/.test(n))                  return { t:"mgmt",     c:COL.inkDim };
+    return { t:"other", c:COL.inkFaint };
+  }
+  function clip(s, n){
+    s = String(s==null?"":s);
+    return s.length > n ? s.slice(0, n-1) + "…" : s;
+  }
+
+  // Group a zone's routes by egress interface, deduped by prefix. Returns one
+  // entry per bound interface (including interfaces with no routes) so every
+  // interface gets its own route box.
+  function ifaceBoxesFor(interfaces, routes){
+    var byIf = {};
+    (routes||[]).forEach(function(l){
+      if(state.activeOnly && !l.active) return;
+      if(!l.iface) return;
+      if(!byIf[l.iface]){ byIf[l.iface] = { seen:{}, list:[] }; }
+      var k = l.prefix + "|" + l.iface;
+      if(byIf[l.iface].seen[k]) return;
+      byIf[l.iface].seen[k] = 1; byIf[l.iface].list.push(l);
+    });
+    return interfaces.map(function(ifn){
+      return { name:ifn, routes: byIf[ifn] ? byIf[ifn].list : [] };
+    });
+  }
+
+  // Build the diagram's list of "items" — one per visible zone, plus a synthetic
+  // "Unzoned egress" item collecting route interfaces that belong to no zone.
+  // Each item carries an `ifaces` list; each interface is drawn as its own box.
+  function diagramItems(){
+    var items = visibleZones().map(function(z){
+      return {
+        name:z.name, kind:z.kind, node:z.node,
+        ifaces: ifaceBoxesFor(z.interfaces, z.routes),
+        empty:z.interfaces.length === 0,
+        danger:z.dupes.length > 0, unzoned:false
+      };
+    });
+
+    var zi = {};
+    state.zones.forEach(function(z){ z.interfaces.forEach(function(i){ zi[i] = 1; }); });
+    var unmap = {}, order = [];
+    state.legs.forEach(function(l){
+      if(!l.iface || zi[l.iface]) return;
+      if(state.activeOnly && !l.active) return;
+      if(!unmap[l.iface]){ unmap[l.iface] = {list:[], seen:{}}; order.push(l.iface); }
+      var k = l.prefix + "|" + l.iface;
+      if(unmap[l.iface].seen[k]) return;
+      unmap[l.iface].seen[k] = 1; unmap[l.iface].list.push(l);
+    });
+    if(order.length){
+      items.push({ name:"Unzoned egress", kind:"unzoned", node:"",
+        ifaces: order.map(function(i){ return { name:i, routes:unmap[i].list }; }),
+        empty:false, danger:true, unzoned:true });
+    }
+    return items;
+  }
+
+  function svgRect(x,y,w,h,fill,stroke,r,dash){
+    return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+r+'" fill="'+fill+'" stroke="'+stroke+
+      '" stroke-width="1.4"'+(dash?' stroke-dasharray="5 4"':'')+'/>';
+  }
+  function svgText(x,y,size,fill,str,weight){
+    return '<text x="'+x+'" y="'+y+'" font-size="'+size+'" fill="'+fill+'"'+
+      (weight?' font-weight="'+weight+'"':'')+'>'+esc(str)+'</text>';
+  }
+
+  function renderDiagram(){
+    var host = $("diagram");
+    var items = diagramItems();
+    if(!items.length){
+      host.innerHTML = '<div class="none">No zones to diagram. Build the report first.</div>';
+      $("dgmCaption").textContent = "";
+      return;
+    }
+
+    var P = 28, deviceW = 150, colGap = 190, zoneW = 380, zoneGap = 22;
+    var zonePad = 12, zoneHeaderH = 34, ifaceGap = 10;
+    var zoneX = P + deviceW + colGap;
+    var ifaceBoxX = zoneX + zonePad;
+    var ifaceBoxW = zoneW - 2 * zonePad;
+    var ifTextX = ifaceBoxX + 12;
+    var haveRoutes = state.routes.length > 0;
+
+    // Measure: each interface becomes its own box; the zone container wraps them.
+    var y = P;
+    items.forEach(function(it){
+      it.boxes = (it.ifaces || []).map(function(f){
+        var cap = Math.min(f.routes.length, DGM_ROUTE_CAP);
+        var more = f.routes.length - cap;
+        var bodyH;
+        if(!haveRoutes)            bodyH = 0;                        // just the name
+        else if(f.routes.length)   bodyH = cap * 17 + (more > 0 ? 15 : 0);
+        else                       bodyH = 15;                      // "no routes egress"
+        return {
+          name:f.name, routes:f.routes, cap:cap, more:more,
+          h: 8 + 18 + (bodyH ? 6 + bodyH : 0) + 8, bodyH:bodyH
+        };
+      });
+
+      var cursor = y + zoneHeaderH;
+      it.boxes.forEach(function(b){ b.top = cursor; cursor += b.h + ifaceGap; });
+      it.top = y;
+      it.contentBottom = it.boxes.length ? (cursor - ifaceGap) : (y + zoneHeaderH + 18);
+      it.h = (it.contentBottom + zonePad) - y;
+      y += it.h + zoneGap;
+    });
+    var contentBottom = y - zoneGap;
+    var totalH = contentBottom + P;
+    var svgW = zoneX + zoneW + P;
+    var devTop = P, devH = contentBottom - devTop, devRight = P + deviceW;
+
+    // One port per interface box, landing on that box's vertical centre.
+    var ports = [];
+    items.forEach(function(it){
+      it.boxes.forEach(function(b){
+        ports.push({ iface:b.name, y:b.top + b.h/2 });
+      });
+    });
+
+    var s = [];
+    s.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+totalH+
+      '" viewBox="0 0 '+svgW+' '+totalH+'">');
+
+    // Device.
+    s.push(svgRect(P, devTop, deviceW, devH, COL.panel2, COL.rule, 8));
+    s.push(svgText(P+14, devTop+24, 13, COL.ink, "Device", 600));
+    s.push(svgText(P+14, devTop+42, 10.5, COL.inkFaint, "Junos / generic"));
+    s.push(svgText(P+14, contentBottom-14, 10.5, COL.inkFaint,
+      ports.length + " interface" + (ports.length===1?"":"s")));
+
+    // Zone container cards. Raised fill, uniform 2px border, header divider.
+    // Drawn before the wires so each wire can cross the card and reach its box.
+    items.forEach(function(it){
+      var cc = containerColor(it), tx = zoneX + 18;
+      s.push('<rect x="'+zoneX+'" y="'+it.top+'" width="'+zoneW+'" height="'+it.h+
+        '" rx="9" fill="'+COL.panel2+'" stroke="'+cc+'" stroke-width="2"'+
+        (it.empty ? ' stroke-dasharray="6 4"' : '')+'/>');
+      s.push('<path d="M'+(zoneX+14)+' '+(it.top+zoneHeaderH-6)+' H '+(zoneX+zoneW-12)+
+        '" stroke="'+cc+'" stroke-width="1" opacity="0.4"/>');
+      s.push(svgText(tx, it.top+23, 14.5, COL.ink, it.name, 700));
+      var tag = it.unzoned ? "unzoned" : (it.kind==="functional" ? "functional" : (it.node||""));
+      if(tag) s.push(svgText(tx + it.name.length*8.2 + 12, it.top+23, 10.5,
+        (it.kind==="functional"||it.unzoned) ? cc : COL.inkDim, tag));
+      if(!it.boxes.length){
+        s.push(svgText(tx, it.top+zoneHeaderH+14, 10.5, COL.out, "No interfaces bound"));
+      }
+    });
+
+    // Wires: device port -> interface box left edge, over the zone card, coloured
+    // by link type. Interface boxes are drawn next and cap the wire ends, so each
+    // wire visibly meets the box it feeds.
+    ports.forEach(function(p){
+      var col = linkClass(p.iface).c, x1 = devRight, x2 = ifaceBoxX, mx = (x1+x2)/2;
+      s.push('<path d="M'+x1+' '+p.y+' C '+mx+' '+p.y+' '+mx+' '+p.y+' '+x2+' '+p.y+
+        '" fill="none" stroke="'+col+'" stroke-width="1.6" opacity="0.9"/>');
+      s.push(svgText(devRight+8, p.y-4, 10.5, col, p.iface));
+      s.push('<circle cx="'+devRight+'" cy="'+p.y+'" r="3" fill="'+col+'"/>');
+    });
+
+    // Interface boxes + their routes.
+    items.forEach(function(it){
+      it.boxes.forEach(function(b){
+        var lc = linkClass(b.name).c;
+        s.push(svgRect(ifaceBoxX, b.top, ifaceBoxW, b.h, COL.ground, lc, 6));
+        s.push('<rect x="'+ifaceBoxX+'" y="'+b.top+'" width="3" height="'+b.h+'" rx="1.5" fill="'+lc+'"/>');
+        s.push(svgText(ifTextX, b.top+17, 11.5, lc, b.name, 600));
+        if(!haveRoutes) return;
+
+        var ry = b.top + 34;
+        if(b.routes.length){
+          for(var i=0;i<b.cap;i++){
+            var l = b.routes[i], pfx = clip(l.prefix, 30);
+            s.push(svgText(ifTextX, ry + i*17, 11, COL.ink, pfx));
+            var suf = l.nh ? ("→ " + l.nh) : (l.iface ? "" : (l.kind || ""));
+            if(suf) s.push(svgText(ifTextX + pfx.length*CHW + 10, ry + i*17, 10.5, COL.inkFaint, suf));
+          }
+          if(b.more > 0) s.push(svgText(ifTextX, ry + b.cap*17, 10.5, COL.inkFaint, "+ "+b.more+" more"));
+        } else {
+          s.push(svgText(ifTextX, ry, 10.5, COL.out, "no routes egress here"));
+        }
+      });
+    });
+
+    s.push('</svg>');
+    host.innerHTML = s.join("");
+
+    var zc = items.filter(function(it){ return !it.unzoned; }).length;
+    var cap = "Generic device  •  " + zc + " zone" + (zc===1?"":"s") +
+      "  •  " + ports.length + " interface" + (ports.length===1?"":"s") + " bound";
+    if(haveRoutes) cap += "  •  " + state.routes.length + " route" + (state.routes.length===1?"":"s");
+    $("dgmCaption").textContent = cap;
+  }
+
   /* ============================ EXPORT ============================ */
 
   function exportCols(){
@@ -910,11 +1176,20 @@ set security zones security-zone trust interfaces reth0.100"></textarea>
     $("viewZones").setAttribute("aria-pressed", String(v==="zones"));
     $("viewRoutes").setAttribute("aria-pressed", String(v==="routes"));
     $("viewIndex").setAttribute("aria-pressed", String(v==="index"));
+    $("viewDiagram").setAttribute("aria-pressed", String(v==="diagram"));
     render();
   }
   $("viewZones").addEventListener("click", function(){ setView("zones"); });
   $("viewRoutes").addEventListener("click", function(){ setView("routes"); });
   $("viewIndex").addEventListener("click", function(){ setView("index"); });
+  $("viewDiagram").addEventListener("click", function(){ setView("diagram"); });
+
+  $("svgBtn").addEventListener("click", function(){
+    var host = $("diagram"), svg = host.querySelector("svg");
+    if(!svg){ showMsg("Nothing to export", "Build the report, then switch to the diagram view."); return; }
+    var src = '<?xml version="1.0" encoding="UTF-8"?>\n' + host.innerHTML;
+    download("zone-diagram.svg", src, "image/svg+xml");
+  });
 
   $("csvBtn").addEventListener("click", function(){
     if(!state.zones.length && !state.legs.length){ showMsg("Nothing to export","Build the report first."); return; }
@@ -1017,6 +1292,7 @@ set security zones security-zone trust interfaces reth0.100"></textarea>
 
   window.__parseZones  = parseZones;
   window.__parseRoutes = parseRoutes;
+  window.__diagramItems = diagramItems;
 
 })();
 </script>
