@@ -1,0 +1,4085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Junos Config Report</title>
+<style>
+  :root{
+    --ground:#131a21;
+    --panel:#1b242d;
+    --panel-2:#212d38;
+    --rule:#2c3945;
+    --rule-soft:#243039;
+    --ink:#dfe7ec;
+    --ink-dim:#8296a5;
+    --ink-faint:#5e7182;
+    --in:#4fc3d9;
+    --out:#e0a253;
+    --alert:#e0645f;
+    --ok:#6fb98a;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 22px 80px}
+
+  .masthead{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--rule)}
+  .masthead h1{font-family:var(--mono);font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0}
+  .cmd{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);border:1px solid var(--rule);border-radius:3px;padding:2px 7px}
+  .masthead .spacer{flex:1}
+  .privacy{font-size:12px;color:var(--ink-faint)}
+  .eyebrow{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+
+  /* ---------- single input pane + drop target ---------- */
+  .pane{display:flex;flex-direction:column;margin-top:22px}
+  .pane-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;margin-bottom:6px}
+  .pane-head .spacer{flex:1}
+  .pane-head .state{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+  .pane-head .state.ok{color:var(--ok)}
+  .pane-head .state.found,.opt-head .state.found{color:var(--in)}
+  .drop{position:relative;border-radius:5px}
+  .drop.over::after{
+    content:"Drop to read the file in this page";
+    position:absolute;inset:0;border:1px dashed var(--in);border-radius:5px;
+    background:rgba(79,195,217,.08);color:var(--in);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:12px;letter-spacing:.04em;pointer-events:none;
+  }
+  textarea{width:100%;min-height:230px;resize:vertical;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:5px;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 13px}
+  textarea::placeholder{color:var(--ink-faint)}
+  textarea:read-only{color:var(--ink-dim)}
+  textarea:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--in);outline-offset:2px}
+  .pane.stowed textarea{min-height:72px;height:72px}
+  .filenote{margin-top:6px;font-size:12px;color:var(--ink-faint);font-family:var(--mono)}
+
+  /* ---------- optional operational panes ---------- */
+  .opt{margin-top:16px;border:1px solid var(--rule);border-radius:5px;background:var(--panel)}
+  .opt-head{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    background:transparent;border:0;border-radius:5px;padding:10px 14px;cursor:pointer;flex-wrap:wrap}
+  .opt-head:hover{border-color:transparent}
+  .opt-head .tw{font-family:var(--mono);font-size:11px;color:var(--ink-faint);width:9px}
+  .opt-head .spacer{flex:1}
+  .opt-hint{font-family:var(--mono);font-size:11px;color:var(--ink-faint);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .opt-body{display:none;padding:0 14px 14px;border-top:1px solid var(--rule-soft)}
+  .opt.on .opt-body{display:block}
+  .opt.on .opt-head .tw{color:var(--ink-dim)}
+  .opt .panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-top:12px}
+  .opt textarea{min-height:130px;font-size:11.5px}
+  .opt .pane-head .cmd{font-size:11px;padding:1px 6px}
+  .opt-note{margin:12px 0 0;font-size:12.5px;color:var(--ink-dim);max-width:78ch}
+
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+  button{font-family:var(--sans);font-size:13px;background:var(--panel-2);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:7px 13px;cursor:pointer}
+  button:hover{border-color:var(--ink-faint)}
+  button.primary{background:var(--in);color:#0d1418;border-color:var(--in);font-weight:600}
+  button.primary:hover{filter:brightness(1.09)}
+  button.ghost{background:transparent}
+  .controls .spacer{flex:1}
+  input[type=file]{display:none}
+
+  /* ---------- summary strip ---------- */
+  .summary{display:none;margin-top:26px;border:1px solid var(--rule);border-radius:5px;background:var(--panel);padding:15px 17px}
+  .summary.on{display:block}
+  .stats{display:flex;flex-wrap:wrap;gap:26px 40px}
+  .stat .n{font-family:var(--mono);font-size:25px;line-height:1.1;letter-spacing:-.02em}
+  .stat .n.warnv{color:var(--out)}
+  .stat .n.badv{color:var(--alert)}
+  .stat .n.okv{color:var(--ok)}
+  .stat .l{margin-top:3px}
+  .srcline{margin-top:15px;padding-top:13px;border-top:1px solid var(--rule-soft);display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .chip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--rule);border-radius:99px;padding:3px 10px;color:var(--ink-dim)}
+  .chip.bad{border-color:var(--alert);color:var(--alert)}
+  .chip.live{border-color:var(--in);color:var(--in)}
+  .chip.cfg{border-color:var(--ink-faint);color:var(--ink-dim)}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{display:none;gap:9px;margin-top:18px;flex-wrap:wrap;align-items:center}
+  .toolbar.on{display:flex}
+  input[type=search]{flex:1;min-width:190px;background:var(--panel);border:1px solid var(--rule);border-radius:4px;color:var(--ink);font-family:var(--mono);font-size:13px;padding:7px 11px}
+  input[type=search]::placeholder{color:var(--ink-faint)}
+  .seg{display:flex;border:1px solid var(--rule);border-radius:4px;overflow:hidden;flex-wrap:wrap}
+  .seg button{border:0;border-radius:0;background:transparent;padding:7px 13px}
+  .seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ink);font-weight:600}
+  .toggle{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-dim);cursor:pointer;white-space:nowrap}
+
+  /* ---------- messages ---------- */
+  .msg{display:none;margin-top:24px;border:1px solid var(--rule);border-left:3px solid var(--alert);border-radius:4px;background:var(--panel);padding:14px 16px}
+  .msg.on{display:block}
+  .msg h3{margin:0 0 5px;font-size:14px;font-weight:600}
+  .msg p{margin:0;font-size:13.5px;color:var(--ink-dim)}
+  .msg code{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+
+  /* ---------- cards ---------- */
+  .cards{margin-top:22px;display:flex;flex-direction:column;gap:14px}
+  .card{border:1px solid var(--rule);border-radius:6px;background:var(--panel);overflow:hidden}
+  .card-head{display:flex;flex-wrap:wrap;align-items:center;gap:9px 14px;padding:12px 16px;border-bottom:1px solid var(--rule-soft)}
+  .card-name{font-family:var(--mono);font-size:15px;font-weight:600}
+  .card-head .spacer{flex:1}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.04em;border:1px solid var(--rule);border-radius:3px;padding:2px 8px;color:var(--ink-dim)}
+  .tag.func{color:var(--out);border-color:var(--out)}
+  .tag.st0{color:var(--ink);border-color:var(--ink-faint)}
+  .count{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;padding:3px 9px;border-radius:3px;background:rgba(79,195,217,.13);color:var(--in)}
+  .count.zero{background:rgba(224,162,83,.14);color:var(--out)}
+  .count.routes{background:rgba(111,185,138,.13);color:var(--ok)}
+  .count.routes.zero{background:rgba(224,162,83,.14);color:var(--out)}
+  .state{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;padding:3px 9px;border-radius:3px}
+  .state.up{background:rgba(111,185,138,.14);color:var(--ok)}
+  .state.down{background:rgba(224,100,95,.14);color:var(--alert)}
+  .state.part{background:rgba(224,162,83,.14);color:var(--out)}
+  .state.idle{background:rgba(130,150,165,.14);color:var(--ink-dim)}
+
+  .ifaces{padding:14px 16px 12px;display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .iface{font-family:var(--mono);font-size:12.5px;border:1px solid var(--rule);border-left:2px solid var(--in);border-radius:3px;padding:4px 10px;background:var(--ground)}
+  .iface.dupe{border-left-color:var(--alert);color:var(--alert)}
+  .iface .rc{color:var(--ink-faint);font-size:11px;margin-left:6px}
+  .none{font-size:13px;color:var(--ink-faint)}
+
+  .routebox{border-top:1px solid var(--rule-soft);padding:11px 16px}
+  .routebox .eyebrow{display:block;margin-bottom:7px}
+  .rlist{display:flex;flex-direction:column;gap:3px}
+  .r{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-family:var(--mono);font-size:12px}
+  .r .p{min-width:150px}
+  .r .pr{color:var(--ink-dim)}
+  .r .nh{color:var(--ink-faint)}
+  .r .tb{color:var(--ink-faint);font-size:11px}
+  .r.inactive{opacity:.55}
+  .more{font-size:12px;color:var(--ink-faint);margin-top:6px;cursor:pointer;text-decoration:underline dotted}
+
+  .attrs{border-top:1px solid var(--rule-soft);padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 22px}
+  .attr{font-size:12.5px;color:var(--ink-dim)}
+  .attr b{color:var(--ink);font-weight:500;font-family:var(--mono);font-size:12px}
+
+  .notes{border-top:1px solid var(--rule-soft);padding:10px 16px;display:flex;flex-direction:column;gap:5px}
+  .note{font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
+  .note .bullet{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;flex:0 0 auto;padding-top:1px}
+  .note.warn .bullet{color:var(--out)}
+  .note.bad .bullet{color:var(--alert)}
+  .note.info .bullet{color:var(--ink-faint)}
+  .note.warn,.note.bad{color:var(--ink)}
+  .note.info{color:var(--ink-dim)}
+
+  /* ---------- VPN card: phase spine ---------- */
+  .spine{display:grid;grid-template-columns:minmax(120px,auto) 1fr minmax(120px,auto);align-items:center;gap:0 18px;padding:17px 16px}
+  .gw .eyebrow{display:block;margin-bottom:4px}
+  .gw .ip{font-family:var(--mono);font-size:14.5px;letter-spacing:-.01em;word-break:break-all}
+  .gw.remote{text-align:right}
+  .lanes{display:flex;flex-direction:column;gap:9px;min-width:0}
+  .lane{border:1px solid var(--rule-soft);border-radius:4px;background:var(--ground);padding:8px 11px}
+  .lane.phase{border-left:2px solid var(--rule)}
+  .lane.phase .bar span{background:var(--ink-dim)}
+  .lane.ike.up{border-left-color:var(--ok)}
+  .lane.ike.up .bar span{background:var(--ok)}
+  .lane.ike.down{border-left-color:var(--alert)}
+  .lane.ike.down .bar span{background:var(--alert)}
+  .tag.ike.up{color:var(--ok);border-color:var(--ok)}
+  .tag.ike.down{color:var(--alert);border-color:var(--alert)}
+  .lane.inbound{border-left:2px solid var(--in)}
+  .lane.outbound{border-right:2px solid var(--out)}
+  .lane-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+  .dir{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim)}
+  .lane.inbound .dir{color:var(--in)}
+  .lane.outbound .dir{color:var(--out)}
+  .spi{font-family:var(--mono);font-size:13px}
+  .lane .spacer{flex:1}
+  .crypto{font-family:var(--mono);font-size:12px;color:var(--ink-dim)}
+  .crypto .weak{color:var(--alert)}
+  .crypto .known{color:var(--in)}
+  .life{display:flex;align-items:center;gap:9px;margin-top:7px}
+  .bar{flex:1;height:3px;background:var(--rule);border-radius:99px;overflow:hidden}
+  .bar span{display:block;height:100%;border-radius:99px}
+  .lane.inbound .bar span{background:var(--in)}
+  .lane.outbound .bar span{background:var(--out)}
+  .life .t{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);white-space:nowrap}
+  .selectors{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;padding:0 16px 14px}
+  .sel .ids{font-family:var(--mono);font-size:13px;word-break:break-all}
+  .sel.remote-sel{text-align:right}
+  .sel .raw{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:2px;word-break:break-all}
+  .livehdr{border-top:1px solid var(--rule-soft);padding:10px 16px 0}
+
+  /* ---------- table view ---------- */
+  .table-wrap{display:none;margin-top:22px;border:1px solid var(--rule);border-radius:6px;overflow:auto}
+  .table-wrap.on{display:block}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px}
+  th{text-align:left;background:var(--panel-2);color:var(--ink-faint);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;padding:9px 12px;border-bottom:1px solid var(--rule);position:sticky;top:0;white-space:nowrap}
+  td{padding:8px 12px;border-bottom:1px solid var(--rule-soft);background:var(--panel);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  tr.inactive td{opacity:.55}
+  td.nowrap{white-space:nowrap}
+  td.dim{color:var(--ink-faint)}
+  td.warnc{color:var(--out)}
+  td.badc{color:var(--alert)}
+  td.okc{color:var(--ok)}
+  td.inc{color:var(--in)}
+
+  /* ---------- policy chips ---------- */
+  .chip-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .chip-stack{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+  .pchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:999px;padding:3px 8px;font-size:11.5px;color:var(--ink);background:rgba(255,255,255,.03);font-family:var(--mono)}
+  .pchip .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint);flex:0 0 auto}
+  .pchip .sub{color:var(--ink-faint);font-size:10.5px;margin-top:0}
+  .sub{color:var(--ink-faint);font-size:10.5px;font-family:var(--mono);margin-top:3px}
+  .pchip.addr{border-color:rgba(79,195,217,.35);color:var(--in)}
+  .pchip.addr .dot{background:var(--in)}
+  .pchip.set{border-color:rgba(224,162,83,.35);color:var(--out)}
+  .pchip.set .dot{background:var(--out)}
+  .pchip.app{border-color:rgba(111,185,138,.35);color:var(--ok)}
+  .pchip.app .dot{background:var(--ok)}
+  .pchip.any{border-color:var(--rule);color:var(--ink-dim)}
+  .pchip.unres{border-color:rgba(224,100,95,.3);color:var(--alert)}
+  .pchip.unres .dot{background:var(--alert)}
+  .pchip.toggle{cursor:pointer;color:var(--ink-dim)}
+  .pchip.toggle:hover{border-color:var(--ink-faint)}
+  .chip-group{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+  .collapse{display:none;margin-top:2px;padding-left:10px;border-left:1px solid var(--rule-soft)}
+  .collapse.on{display:block}
+
+  /* ---------- diagram ---------- */
+  .diagram-wrap{display:none;margin-top:22px;border:1px solid var(--rule);border-radius:6px;background:var(--panel);overflow:hidden}
+  .diagram-wrap.on{display:block}
+  .dgm-bar{display:flex;align-items:center;gap:14px 18px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--rule-soft)}
+  .dgm-bar .spacer{flex:1}
+  .dgm-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--ink-dim)}
+  .dgm-legend .k{display:inline-flex;align-items:center;gap:5px}
+  .dgm-legend .grp{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .dgm-legend .sw{width:11px;height:11px;border-radius:2px;display:inline-block;border:1px solid var(--rule)}
+  .dgm-legend .sw.dash{background:transparent;border-style:dashed}
+  #diagram{overflow:auto;padding:8px 6px}
+  #diagram svg{display:block}
+  #diagram text{font-family:var(--mono)}
+  #diagram .none{padding:24px;color:var(--ink-faint);font-size:13px}
+
+  /* ---------- overview ---------- */
+  .ov{display:none;margin-top:22px;flex-direction:column;gap:14px}
+  .ov.on{display:flex}
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+  .ov-card{border:1px solid var(--rule);border-radius:6px;background:var(--panel);padding:13px 15px}
+  .ov-card .eyebrow{display:block;margin-bottom:9px}
+  .kv{display:flex;justify-content:space-between;gap:14px;font-size:13px;padding:3px 0;border-bottom:1px solid var(--rule-soft)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--ink-dim)}
+  .kv .v{font-family:var(--mono);font-size:12.5px;text-align:right;word-break:break-all}
+  .kv .v.zero{color:var(--ink-faint)}
+  .kv .v.warnv{color:var(--out)}
+  .kv .v.badv{color:var(--alert)}
+  .kv.link{cursor:pointer}
+  .kv.link:hover .k{color:var(--ink)}
+
+  .hidden{display:none !important}
+  .foot{margin-top:34px;font-size:12px;color:var(--ink-faint);line-height:1.6}
+  .foot code{font-family:var(--mono)}
+  .foot b{color:var(--ink-dim);font-weight:600}
+  .ver{margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-faint)}
+
+  @media (max-width:860px){
+    .spine{grid-template-columns:1fr;gap:12px}
+    .gw.remote,.sel.remote-sel{text-align:left}
+    .selectors{grid-template-columns:1fr;gap:10px}
+    .attrs{flex-direction:column;gap:4px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <h1>Junos Config Report</h1>
+    <span class="spacer"></span>
+    <span class="privacy">Runs entirely in this page. Nothing is uploaded.</span>
+  </div>
+
+  <div class="pane" id="pane">
+    <div class="pane-head">
+      <label class="eyebrow" for="raw">Configuration</label>
+      <span class="cmd">show configuration</span>
+      <span class="cmd">| display set</span>
+      <span class="spacer"></span>
+      <span class="state" id="inputState">not parsed</span>
+    </div>
+    <div class="drop" data-target="raw" id="drop">
+      <textarea id="raw" spellcheck="false" placeholder="Paste a whole Junos configuration — curly-brace or `| display set` form — or drop a file here.
+
+security {
+    zones {
+        security-zone trust {
+            interfaces {
+                reth0.0;
+            }
+        }
+    }
+}
+
+Operational output pasted in here alongside the config is picked up too, or use the
+optional panes below to keep each capture separate."></textarea>
+    </div>
+    <div class="filenote hidden" id="fileNote"></div>
+  </div>
+
+  <div class="opt" id="opt">
+    <button class="opt-head" id="optToggle" aria-expanded="false" aria-controls="optBody">
+      <span class="tw" id="optTwisty">&#9656;</span>
+      <span class="eyebrow">Operational output — optional</span>
+      <span class="opt-hint">show route &middot; ipsec security-associations &middot; ike security-associations</span>
+      <span class="spacer"></span>
+      <span class="state" id="optState"></span>
+    </button>
+    <div class="opt-body" id="optBody">
+      <p class="opt-note">The configuration is what the box is meant to do. These are what it
+      is actually doing — paste either, both, or neither. Anything dropped into the
+      configuration box is still read, so these panes are only for keeping captures apart.</p>
+      <div class="panes">
+        <div class="pane">
+          <div class="pane-head">
+            <label class="eyebrow" for="rawRoutes">Route table</label>
+            <span class="cmd">show route</span>
+            <span class="spacer"></span>
+            <span class="state" id="routeState">optional</span>
+          </div>
+          <div class="drop" data-target="rawRoutes">
+            <textarea id="rawRoutes" spellcheck="false" placeholder="inet.0: 12 destinations, 14 routes (12 active, 0 holddown, 0 hidden)
++ = Active Route, - = Last Active, * = Both
+
+0.0.0.0/0          *[Static/5] 2w3d 04:12:33
+                    >  to 203.0.113.254 via reth1.0"></textarea>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-head">
+            <label class="eyebrow" for="rawSAs">IPsec SAs</label>
+            <span class="cmd">show security ipsec security-associations detail</span>
+            <span class="spacer"></span>
+            <span class="state" id="saState">optional</span>
+          </div>
+          <div class="drop" data-target="rawSAs">
+            <textarea id="rawSAs" spellcheck="false" placeholder="  ID: 500001 Virtual-system: root, VPN Name: to-branch
+  Local Gateway: 203.0.113.10, Remote Gateway: 198.51.100.77
+  Bind-interface: st0.0
+    Direction: inbound, SPI: 0x0a2b3c4d
+      Mode: Tunnel(0 0), Type: dynamic, State: installed"></textarea>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-head">
+            <label class="eyebrow" for="rawIKE">IKE SAs</label>
+            <span class="cmd">show security ike security-associations detail</span>
+            <span class="spacer"></span>
+            <span class="state" id="ikeState">optional</span>
+          </div>
+          <div class="drop" data-target="rawIKE">
+            <textarea id="rawIKE" spellcheck="false" placeholder="IKE peer 198.51.100.77, Index 6666666, Gateway Name: gw-branch
+  Role: Initiator, State: UP
+  Exchange type: IKEv2, Authentication method: Pre-shared-keys
+  Local: 203.0.113.10:500, Remote: 198.51.100.77:500
+  Lifetime: Expires in 22391 seconds
+
+or the summary form
+
+Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
+6666666 UP     5d3f2a1b9c8e7f60  a1b2c3d4e5f60718  IKEv2  198.51.100.77"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="parseBtn">Build report</button>
+    <button class="ghost" id="fileBtn">Open file&hellip;</button>
+    <input type="file" id="fileInput" accept=".txt,.conf,.cfg,.config,.log,.set,.text,text/plain">
+    <button class="ghost" id="sampleBtn">Load sample</button>
+    <button class="ghost" id="clearBtn">Clear</button>
+    <span class="spacer"></span>
+    <button class="ghost" id="csvBtn">Download CSV</button>
+    <button class="ghost" id="mdBtn">Copy Markdown</button>
+  </div>
+
+  <div class="msg" id="msg">
+    <h3 id="msgTitle"></h3>
+    <p id="msgBody"></p>
+  </div>
+
+  <div class="summary" id="summary">
+    <div class="stats" id="stats"></div>
+    <div class="srcline" id="srcline"></div>
+  </div>
+
+  <div class="toolbar" id="toolbar">
+    <input type="search" id="filter" placeholder="Filter by name, interface, prefix, zone, address, or application">
+    <label class="toggle"><input type="checkbox" id="activeOnly" checked> Active only</label>
+    <label class="toggle"><input type="checkbox" id="problemsOnly"> Problems only</label>
+    <div class="seg">
+      <button id="viewOverview" aria-pressed="true">Overview</button>
+      <button id="viewIfaces" aria-pressed="false">Interfaces</button>
+      <button id="viewZones" aria-pressed="false">Zones</button>
+      <button id="viewRoutes" aria-pressed="false">Routes</button>
+      <button id="viewDiagram" aria-pressed="false">Diagram</button>
+      <button id="viewPolicies" aria-pressed="false">Policies</button>
+      <button id="viewVpn" aria-pressed="false">VPN</button>
+    </div>
+  </div>
+
+  <div class="ov" id="ov"></div>
+
+  <div class="cards hidden" id="cards"></div>
+
+  <div class="table-wrap" id="tableWrap">
+    <table id="table"></table>
+  </div>
+
+  <div class="diagram-wrap" id="diagramWrap">
+    <div class="dgm-bar">
+      <span class="eyebrow" id="dgmCaption"></span>
+      <span class="dgm-legend">
+        <span class="grp">Links</span>
+        <span class="k"><span class="sw" style="background:var(--in)"></span>ethernet</span>
+        <span class="k"><span class="sw" style="background:var(--ok)"></span>reth / ae</span>
+        <span class="k"><span class="sw" style="background:var(--out)"></span>tunnel</span>
+        <span class="k"><span class="sw" style="background:var(--ink-dim)"></span>mgmt</span>
+        <span class="k"><span class="sw" style="background:var(--ink-faint)"></span>other</span>
+      </span>
+      <span class="dgm-legend">
+        <span class="grp">Zones</span>
+        <span class="k"><span class="sw" style="background:var(--ink-faint)"></span>zone group</span>
+        <span class="k"><span class="sw" style="background:var(--out)"></span>functional</span>
+        <span class="k"><span class="sw" style="background:var(--alert)"></span>unzoned / conflict</span>
+        <span class="k"><span class="sw dash"></span>no interfaces</span>
+      </span>
+      <span class="spacer"></span>
+      <button class="ghost" id="svgBtn">Download SVG</button>
+    </div>
+    <div id="diagram"></div>
+  </div>
+
+  <p class="foot">
+    <b>Where the numbers come from.</b> Everything on this page is read out of the text above — the file
+    you open is read in the browser and never leaves it. Routes marked <code>config</code> are the
+    <code>static</code> routes in the configuration plus the connected routes implied by each interface
+    address; their egress interface is worked out by matching the next-hop against the configured
+    connected subnets, exactly as the device would for a directly attached next hop. That is
+    <em>intent</em>, not the live RIB — routes learned by OSPF, BGP, or any other protocol appear only
+    if <code>show route</code> output is pasted alongside the config, and those rows are marked
+    <code>show route</code>. A next-hop that falls outside every configured subnet is reported
+    unresolved rather than guessed at. Pre-shared keys are never rendered.
+    <br><br>
+    <b>Configuration and live state answer different questions.</b> The optional panes take
+    <code>show route</code>, <code>show security ipsec security-associations detail</code> and
+    <code>show security ike security-associations detail</code>. Where a capture overlaps the
+    configuration the live one wins, and the difference is reported: a static route that never
+    made it into the RIB, a phase 1 that came up on algorithms the proposals merely allowed, a
+    tunnel negotiated at phase 1 with no phase 2 SA behind it. Take the captures from the same
+    box at the same time — a stale one attributes traffic to the wrong place.
+  </p>
+  <div class="ver">Version 1.1</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function esc(s){
+    return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+    });
+  }
+  function uniq(a){ return a.filter(function(v,i){ return a.indexOf(v)===i; }); }
+  function push(arr, v){ if(v && arr.indexOf(v) === -1) arr.push(v); }
+  function plural(n, one, many){ return n + " " + (n===1 ? one : (many || one + "s")); }
+  function isAre(n){ return n === 1 ? "is" : "are"; }
+  function doDoes(n){ return n === 1 ? "does" : "do"; }
+
+  /* ============================ FLATTENER ============================
+     Both config forms say the same thing:
+
+       security { zones { security-zone trust { interfaces { reth0.0; } } } }
+       set security zones security-zone trust interfaces reth0.0
+
+     Everything below reads one model: a path of tokens per statement. Getting
+     the two forms onto that model here is what lets a single set of section
+     parsers handle either paste, and it is why this tool needs no per-section
+     format sniffing.                                                       */
+
+  var NODE_RE   = /^\s*(node\d+|re\d+|fpc\d+)\s*:\s*$/i;
+  var PROMPT_RE = /^\s*(?:\{(?:master|primary|secondary|backup|linecard)[^}]*\}|[\w.-]+@[\w.-]+\s*[>#].*)$/;
+  var HASH_RE   = /^\s*#/;
+
+  // Split a line into tokens. Quoted strings survive as one token; braces,
+  // semicolons and list brackets come through as their own tokens.
+  function tokenize(s){
+    var out = [], i = 0, n = s.length, c, j;
+    while(i < n){
+      c = s.charAt(i);
+      if(c === " " || c === "\t"){ i++; continue; }
+      if(c === '"'){
+        j = s.indexOf('"', i+1);
+        if(j === -1){ out.push(s.slice(i+1)); break; }
+        out.push(s.slice(i+1, j)); i = j + 1; continue;
+      }
+      if(c==="{"||c==="}"||c===";"||c==="["||c==="]"){ out.push(c); i++; continue; }
+      j = i;
+      while(j < n && " \t{};[]\"".indexOf(s.charAt(j)) === -1) j++;
+      out.push(s.slice(i, j)); i = j;
+    }
+    return out;
+  }
+
+  // Junos configurations carry key material inline. No view here needs it, so it
+  // is dropped as the statement is built rather than filtered out further down -
+  // that way it never reaches the model, an export, or the DOM.
+  var SECRET_KEY = /^(ascii-text|hexadecimal|plain-text-password|encrypted-password|secret|simple-password|authentication-key|pre-shared-key|key)$/i;
+  var SECRET_VAL = /^\$[0-9A-Za-z]{1,3}\$/;
+
+  function redact(p){
+    var out = [], i, t, hide = false;
+    for(i=0;i<p.length;i++){
+      t = String(p[i]);
+      if(hide){ out.push("(hidden)"); hide = false; continue; }
+      out.push(SECRET_VAL.test(t) ? "(hidden)" : t);
+      if(SECRET_KEY.test(t)) hide = true;
+    }
+    return out;
+  }
+
+  function emitRec(recs, stack, seg, inactive, node){
+    var p = [], i, j, ina = inactive;
+    for(i=0;i<stack.length;i++){
+      if(stack[i].inactive) ina = true;
+      for(j=0;j<stack[i].seg.length;j++) p.push(stack[i].seg[j]);
+    }
+    for(i=0;i<seg.length;i++) p.push(seg[i]);
+    if(!p.length) return;
+    p = redact(p);
+    recs.push({ p:p, inactive:ina, node:node, grp:(p[0]==="groups" ? (p[1]||"?") : "") });
+  }
+
+  function handleStatement(toks, stack, recs, node){
+    var inactive = false, fromSet = false, t0;
+
+    while(toks.length){
+      t0 = String(toks[0]);
+      if(/^inactive:$/i.test(t0)){ inactive = true; toks = toks.slice(1); continue; }
+      if(/^(protect:|unprotect:|replace:)$/i.test(t0)){ toks = toks.slice(1); continue; }
+      if(/^set$/i.test(t0)){ fromSet = true; toks = toks.slice(1); continue; }
+      if(/^deactivate$/i.test(t0)){ fromSet = true; inactive = true; toks = toks.slice(1); continue; }
+      if(/^(delete|activate|rollback|annotate|edit|top|exit|commit)$/i.test(t0)) return;
+      break;
+    }
+    if(!toks.length) return;
+
+    // A "set" line carries its own full path, so it never inherits the brace stack.
+    var st = fromSet ? [] : stack;
+    var seg = [], segOff = false, i, t;
+
+    for(i=0;i<toks.length;i++){
+      t = toks[i];
+      if(t === "[" || t === "]") continue;            // list brackets: values follow as tokens
+      // Junos prints several statements per line often enough that "inactive:"
+      // has to be handled mid-line, not only as a line prefix.
+      if(/^inactive:$/i.test(t)){ segOff = true; continue; }
+      if(t === "{"){
+        if(seg.length){ st.push({seg:seg, inactive:inactive || segOff}); seg = []; segOff = false; }
+        continue;
+      }
+      if(t === "}"){
+        if(seg.length){ emitRec(recs, st, seg, inactive || segOff, node); seg = []; segOff = false; }
+        if(st.length) st.pop();
+        continue;
+      }
+      if(t === ";"){
+        if(seg.length){ emitRec(recs, st, seg, inactive || segOff, node); seg = []; segOff = false; }
+        continue;
+      }
+      seg.push(t);
+    }
+    if(seg.length && fromSet) emitRec(recs, st, seg, inactive || segOff, node);
+  }
+
+  function flatten(text){
+    if(!text) return [];
+    var lines = String(text).replace(/\r\n?/g,"\n").split("\n");
+    var recs = [], stack = [], node = "", pend = null;
+    var i, raw, toks, k, bd, nm;
+
+    for(i=0;i<lines.length;i++){
+      raw = lines[i];
+      if(!pend){
+        if(!raw.trim()) continue;
+        nm = raw.match(NODE_RE);
+        if(nm){ node = nm[1].toLowerCase(); stack = []; continue; }
+        if(PROMPT_RE.test(raw)) continue;
+        if(HASH_RE.test(raw)) continue;
+        raw = raw.replace(/\/\*[^*]*\*\//g, " ");
+      }
+
+      toks = tokenize(raw);
+      if(pend){ toks = pend.concat(toks); pend = null; }
+      if(!toks.length) continue;
+
+      bd = 0;
+      for(k=0;k<toks.length;k++){ if(toks[k]==="[") bd++; else if(toks[k]==="]") bd--; }
+      if(bd > 0){ pend = toks; continue; }          // list runs onto the next line
+
+      handleStatement(toks, stack, recs, node);
+    }
+    if(pend) handleStatement(pend, stack, recs, node);
+    return recs;
+  }
+
+  /* ---- path matching ---- */
+
+  // Statements under "groups" are templates, not applied config. They are kept
+  // in the flat model but never matched, so an apply-group never shows up as if
+  // it were bound to a live zone or interface.
+  function tailOf(rec, pat){
+    if(rec.grp) return null;
+    if(rec.p.length < pat.length) return null;
+    for(var i=0;i<pat.length;i++){
+      if(pat[i] === "*") continue;
+      if(String(rec.p[i]).toLowerCase() !== pat[i]) return null;
+    }
+    return rec.p.slice(pat.length);
+  }
+  function walk(flat, pat, cb){
+    for(var i=0;i<flat.length;i++){
+      var t = tailOf(flat[i], pat);
+      if(t) cb(t, flat[i]);
+    }
+  }
+  function has(flat, pat){
+    for(var i=0;i<flat.length;i++){ if(tailOf(flat[i], pat)) return true; }
+    return false;
+  }
+
+  /* ============================ IP MATH ============================
+     Bit strings rather than integers: 32 bits and 128 bits behave the same,
+     and there is no 32-bit signed overflow to trip over.                   */
+
+  function v4Bits(a){
+    var m = String(a).match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if(!m) return null;
+    var s = "", i, b, n;
+    for(i=1;i<=4;i++){
+      n = parseInt(m[i],10);
+      if(isNaN(n) || n > 255) return null;
+      for(b=7;b>=0;b--) s += ((n >> b) & 1);
+    }
+    return s;
+  }
+
+  function v6Bits(a){
+    a = String(a);
+    if(a.indexOf(":") === -1) return null;
+    var halves = a.split("::");
+    if(halves.length > 2) return null;
+    function grp(s){ return s ? s.split(":").filter(function(x){ return x !== ""; }) : []; }
+    var head = grp(halves[0]), tail = halves.length === 2 ? grp(halves[1]) : [];
+    var lastArr = tail.length ? tail : head;
+    var last = lastArr.length ? lastArr[lastArr.length-1] : "";
+    if(last.indexOf(".") !== -1){                      // ::ffff:10.0.0.1
+      var vb = v4Bits(last);
+      if(!vb) return null;
+      var g1 = parseInt(vb.slice(0,16),2).toString(16);
+      var g2 = parseInt(vb.slice(16),2).toString(16);
+      if(tail.length) tail = tail.slice(0,-1).concat([g1,g2]);
+      else            head = head.slice(0,-1).concat([g1,g2]);
+    }
+    var all;
+    if(halves.length === 1){
+      if(head.length !== 8) return null;
+      all = head;
+    } else {
+      var fill = 8 - head.length - tail.length;
+      if(fill < 0) return null;
+      all = head.slice();
+      while(fill-- > 0) all.push("0");
+      all = all.concat(tail);
+    }
+    var s = "", i, b, n;
+    for(i=0;i<8;i++){
+      n = parseInt(all[i] || "0", 16);
+      if(isNaN(n) || n > 0xffff) return null;
+      for(b=15;b>=0;b--) s += ((n >> b) & 1);
+    }
+    return s;
+  }
+
+  function ipBits(a){
+    a = String(a==null?"":a).trim();
+    if(!a) return null;
+    return a.indexOf(":") !== -1 ? v6Bits(a) : v4Bits(a);
+  }
+  function bitsToV4(bits){
+    var o = [];
+    for(var i=0;i<4;i++) o.push(parseInt(bits.substr(i*8,8),2));
+    return o.join(".");
+  }
+  function bitsToV6(bits){
+    var g = [], i;
+    for(i=0;i<8;i++) g.push(parseInt(bits.substr(i*16,16),2).toString(16));
+    var bestI = -1, bestL = 0, ci = -1, cl = 0;
+    for(i=0;i<8;i++){
+      if(g[i] === "0"){
+        if(ci < 0){ ci = i; cl = 1; } else cl++;
+        if(cl > bestL){ bestL = cl; bestI = ci; }
+      } else { ci = -1; cl = 0; }
+    }
+    if(bestL > 1) return g.slice(0,bestI).join(":") + "::" + g.slice(bestI+bestL).join(":");
+    return g.join(":");
+  }
+  function network(cidr){
+    var m = String(cidr==null?"":cidr).match(/^([^\/]+)\/(\d{1,3})$/);
+    if(!m) return null;
+    var bits = ipBits(m[1]);
+    if(!bits) return null;
+    var len = parseInt(m[2],10);
+    if(isNaN(len) || len > bits.length) return null;
+    var net = bits.slice(0,len);
+    while(net.length < bits.length) net += "0";
+    return { bits:net, len:len, v6:bits.length === 128,
+             cidr:(bits.length === 128 ? bitsToV6(net) : bitsToV4(net)) + "/" + len };
+  }
+  function inNet(bits, net){
+    if(!bits || !net || bits.length !== net.bits.length) return false;
+    return bits.slice(0,net.len) === net.bits.slice(0,net.len);
+  }
+
+  /* ============================ INTERFACES ============================ */
+
+  var IF_UNIT_RE = /^[A-Za-z][A-Za-z0-9\-]*(?:\d+\/\d+\/\d+(?::\d+)?)?\.\d+$/;
+
+  function parseInterfaces(flat){
+    var units = {}, order = [], phys = {}, physOrder = [];
+
+    function ph(name){
+      if(!phys[name]){
+        phys[name] = { name:name, desc:"", disabled:false, inactive:false, vlanTag:false,
+                       parent:"", mtu:"", encap:"" };
+        physOrder.push(name);
+      }
+      return phys[name];
+    }
+    function un(pn, u){
+      var full = pn + "." + u;
+      if(!units[full]){
+        units[full] = { name:full, phys:pn, unit:String(u), desc:"", vlan:"", disabled:false,
+                        inactive:false, addrs:[], families:[], zone:"", instance:"",
+                        notConfigured:false };
+        order.push(full);
+      }
+      return units[full];
+    }
+
+    walk(flat, ["interfaces","*"], function(rest, rec){
+      var pn = rec.p[1];
+      if(!pn || pn === "interface-range" || pn === "traceoptions" || pn === "apply-groups") return;
+      var P = ph(pn);
+      if(rec.inactive && rest.length <= 1) P.inactive = true;
+      if(!rest.length) return;
+
+      if(rest[0] === "description"){ P.desc = rest.slice(1).join(" "); return; }
+      if(rest[0] === "disable"){ P.disabled = true; return; }
+      if(rest[0] === "mtu"){ P.mtu = rest[1] || ""; return; }
+      if(rest[0] === "encapsulation"){ P.encap = rest[1] || ""; return; }
+      if(rest[0] === "vlan-tagging" || rest[0] === "flexible-vlan-tagging"){ P.vlanTag = true; return; }
+      if(/-options$/.test(String(rest[0])) && rest[1] === "redundant-parent"){ P.parent = rest[2] || ""; return; }
+
+      if(rest[0] !== "unit" || rest[1] == null) return;
+      var U = un(pn, rest[1]);
+      if(rec.inactive) U.inactive = true;
+      var r = rest.slice(2);
+      if(!r.length) return;
+
+      if(r[0] === "description"){ U.desc = r.slice(1).join(" "); return; }
+      if(r[0] === "disable"){ U.disabled = true; return; }
+      if(r[0] === "vlan-id"){ U.vlan = r[1] || ""; return; }
+      if(r[0] !== "family" || !r[1]) return;
+
+      push(U.families, r[1]);
+      if((r[1] === "inet" || r[1] === "inet6") && r[2] === "address" && r[3]){
+        var dup = U.addrs.some(function(a){ return a.af === r[1] && a.addr === r[3]; });
+        if(!dup) U.addrs.push({ af:r[1], addr:r[3] });
+      }
+    });
+
+    // Physical-level description and disable carry down to every unit on the port.
+    order.forEach(function(k){
+      var U = units[k], P = phys[U.phys];
+      if(!P) return;
+      if(!U.desc && P.desc) U.desc = P.desc;
+      if(P.disabled) U.disabled = true;
+      if(P.inactive) U.inactive = true;
+    });
+
+    return { units:units, order:order, phys:phys, physOrder:physOrder };
+  }
+
+  /* ============================ ZONES ============================ */
+
+  function markDuplicates(zones){
+    var seen = {};
+    zones.forEach(function(z){
+      z.interfaces.forEach(function(i){
+        var k = (z.node||"") + "|" + i;
+        (seen[k] = seen[k] || []).push(z.name);
+      });
+    });
+    zones.forEach(function(z){
+      z.dupes = z.interfaces.filter(function(i){
+        var k = (z.node||"") + "|" + i;
+        return seen[k] && uniq(seen[k]).length > 1;
+      });
+    });
+  }
+
+  function zonesFromFlat(flat){
+    var zones = [], byKey = {};
+
+    function zone(kind, name){
+      var k = kind + "|" + name;
+      if(!byKey[k]){
+        byKey[k] = { node:"", kind:kind, name:name, desc:"", screen:"", interfaces:[], dupes:[],
+                     routes:[], tables:[], services:[], protocols:[], tcpRst:"", appTrack:"",
+                     policyCfg:"", inactive:false, notes:[], bound:0 };
+        zones.push(byKey[k]);
+      }
+      return byKey[k];
+    }
+
+    ["security-zone","functional-zone"].forEach(function(kindTok){
+      walk(flat, ["security","zones",kindTok,"*"], function(rest, rec){
+        var name = rec.p[3];
+        if(!name) return;
+        var Z = zone(kindTok === "functional-zone" ? "functional" : "security", name);
+        if(!Z.node && rec.node) Z.node = rec.node;
+        if(rec.inactive && !rest.length) Z.inactive = true;
+        if(!rest.length) return;
+
+        if(rest[0] === "interfaces"){ push(Z.interfaces, rest[1]); return; }
+        if(rest[0] === "description"){ Z.desc = rest.slice(1).join(" "); return; }
+        if(rest[0] === "screen"){ Z.screen = rest[1] || ""; return; }
+        if(rest[0] === "tcp-rst"){ Z.tcpRst = "yes"; return; }
+        if(rest[0] === "application-tracking"){ Z.appTrack = "yes"; return; }
+        if(rest[0] === "host-inbound-traffic"){
+          if(rest[1] === "system-services") push(Z.services, rest[2]);
+          if(rest[1] === "protocols") push(Z.protocols, rest[2]);
+          return;
+        }
+      });
+    });
+
+    zones.forEach(function(z){
+      z.bound = z.interfaces.length;
+      if(z.kind === "functional") z.policyCfg = "no";
+    });
+    markDuplicates(zones);
+    return zones;
+  }
+
+  function parseZones(text){ return zonesFromFlat(flatten(text)); }
+
+  /* ============================ ROUTING INSTANCES ============================ */
+
+  function instancesFromFlat(flat){
+    var map = {}, order = [];
+    function I(n){
+      if(!map[n]){ map[n] = { name:n, type:"", interfaces:[], rd:"" }; order.push(n); }
+      return map[n];
+    }
+    walk(flat, ["routing-instances","*"], function(rest, rec){
+      var n = rec.p[1];
+      if(!n || n === "apply-groups") return;
+      var R = I(n);
+      if(rest[0] === "instance-type") R.type = rest[1] || "";
+      else if(rest[0] === "interface") push(R.interfaces, rest[1]);
+      else if(rest[0] === "route-distinguisher") R.rd = rest[1] || "";
+    });
+    return { map:map, order:order };
+  }
+
+  function tableFor(instName, af){
+    var base = af === "inet6" ? "inet6.0" : "inet.0";
+    return instName ? (instName + "." + base) : base;
+  }
+
+  function mkRoute(table, prefix, proto, pref, metric, paths, active, src){
+    return { node:"", table:table, prefix:prefix, active:!!active, marker:"",
+             protocol:proto, pref:pref||"", metric:metric||"", age:"",
+             paths:paths, extraPath:false, src:src };
+  }
+
+  /* ============================ ROUTES FROM CONFIG ============================
+     Two sources, both deterministic:
+
+       connected — every "family inet address A/P" implies a route to the network
+                   of A/P out of that unit, which is what puts an interface on the
+                   diagram at all.
+       static    — routing-options static route, plus the same under any routing
+                   instance or named rib.
+
+     A static next-hop is an address, not an interface, so the egress interface is
+     found by longest-prefix match against the connected subnets *in the same
+     table* — the same resolution the device does for a directly attached next hop.
+     A next-hop that lands in none of them stays unresolved; it is not guessed.   */
+
+  function configRoutes(flat, ifx, inst){
+    var routes = [], tables = [], connected = [], unresolved = [];
+
+    var ifInstance = {};
+    inst.order.forEach(function(n){
+      inst.map[n].interfaces.forEach(function(i){ ifInstance[i] = n; });
+    });
+
+    ifx.order.forEach(function(name){
+      var U = ifx.units[name];
+      U.instance = ifInstance[name] || "";
+      U.addrs.forEach(function(a){
+        var net = network(a.addr);
+        if(!net) return;
+        var tbl = tableFor(U.instance, a.af);
+        connected.push({ net:net, iface:name, table:tbl, af:a.af });
+        routes.push(mkRoute(tbl, net.cidr, "Direct", "0", "",
+          [{nh:"", iface:name, kind:"direct", selected:true}],
+          !U.disabled && !U.inactive, "config"));
+      });
+    });
+
+    var statics = {}, order = [];
+    function S(tbl, prefix, rec){
+      var k = tbl + "|" + prefix;
+      if(!statics[k]){
+        statics[k] = { table:tbl, prefix:prefix, nh:[], kind:"", nextTable:"",
+                       pref:"5", metric:"", inactive:false };
+        order.push(k);
+      }
+      if(rec.inactive) statics[k].inactive = true;
+      return statics[k];
+    }
+
+    function collect(pat, tblFn){
+      walk(flat, pat, function(rest, rec){
+        var prefix = rest[0];
+        if(!prefix || prefix.indexOf("/") === -1) return;
+        var af = prefix.indexOf(":") !== -1 ? "inet6" : "inet";
+        var R = S(tblFn(rec, af), prefix, rec), i;
+        var k = rest[1];
+        if(k === "next-hop" || k === "qualified-next-hop"){
+          for(i=2;i<rest.length;i++){
+            if(/^(preference|metric|interface|bfd-liveness-detection|tag)$/.test(String(rest[i]))) break;
+            push(R.nh, rest[i]);
+          }
+        }
+        else if(k === "discard" || k === "reject" || k === "receive") R.kind = k;
+        else if(k === "next-table") R.nextTable = rest[2] || "";
+        else if(k === "preference") R.pref = rest[2] || R.pref;
+        else if(k === "metric") R.metric = rest[2] || "";
+      });
+    }
+
+    collect(["routing-options","static","route"], function(rec, af){ return tableFor("", af); });
+    collect(["routing-options","rib","*","static","route"], function(rec){ return rec.p[2]; });
+    collect(["routing-instances","*","routing-options","static","route"], function(rec, af){ return tableFor(rec.p[1], af); });
+    collect(["routing-instances","*","routing-options","rib","*","static","route"], function(rec){ return rec.p[4]; });
+
+    function resolveNh(tok, tbl){
+      if(ifx.units[tok] || IF_UNIT_RE.test(String(tok))){
+        return { nh:"", iface:String(tok), kind:"via", selected:true };
+      }
+      var bits = ipBits(tok);
+      if(bits){
+        var best = null;
+        connected.forEach(function(c){
+          if(c.table !== tbl || !inNet(bits, c.net)) return;
+          if(!best || c.net.len > best.net.len) best = c;
+        });
+        if(best) return { nh:String(tok), iface:best.iface, kind:"via", selected:true };
+      }
+      push(unresolved, String(tok));
+      return { nh:String(tok), iface:"", kind:"unresolved", selected:true };
+    }
+
+    order.forEach(function(k){
+      var R = statics[k], paths = [];
+      R.nh.forEach(function(t){ paths.push(resolveNh(t, R.table)); });
+      if(!paths.length){
+        if(R.kind)           paths.push({nh:"", iface:"", kind:R.kind, selected:true});
+        else if(R.nextTable) paths.push({nh:R.nextTable, iface:"", kind:"next-table", selected:true});
+        else                 paths.push({nh:"", iface:"", kind:"none", selected:true});
+      }
+      routes.push(mkRoute(R.table, R.prefix, "Static", R.pref, R.metric, paths, !R.inactive, "config"));
+    });
+
+    routes.sort(function(a,b){
+      if(a.table !== b.table) return a.table.localeCompare(b.table);
+      return a.prefix.localeCompare(b.prefix, undefined, {numeric:true});
+    });
+    routes.forEach(function(r){ push(tables, r.table); });
+    return { routes:routes, tables:tables, connected:connected, unresolved:unresolved };
+  }
+
+  /* ============================ ROUTES FROM show route ============================
+     Unchanged from the zone/route tool: if operational output is pasted in with
+     the config, the live RIB is read straight out of it and merged.            */
+
+  var TABLE_RE  = /^(\S+):\s+(\d+)\s+destinations?,\s+(\d+)\s+routes?/;
+  var ROUTE_RE  = /^(\S+)\s+([*+-]{0,2})\[([A-Za-z0-9_-]+)\/(\d+)(?:\/(\d+))?\]\s*(.*)$/;
+  var PATH_RE   = /^\s+([*+-]{0,2})\[([A-Za-z0-9_-]+)\/(\d+)(?:\/(\d+))?\]\s*(.*)$/;
+  var PREFIX_OK = /^(?:\d{1,3}(?:\.\d{1,3}){3}(?:\/\d{1,2})?|[0-9a-fA-F:]+(?:\/\d{1,3})?|\S+\/\d+)$/;
+
+  function parseRoutes(text){
+    if(!text || !text.trim()) return { routes:[], tables:[] };
+    var lines = text.replace(/\r\n?/g,"\n").split("\n");
+    var routes = [], tables = [], table = "", node = "", cur = null;
+
+    function closeRoute(){
+      if(!cur) return;
+      if(!cur.paths.length) cur.paths.push({nh:"", iface:"", kind:"none", selected:true});
+      routes.push(cur);
+      cur = null;
+    }
+
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      if(!ln.trim()) continue;
+
+      var nm = ln.match(NODE_RE);
+      if(nm){ closeRoute(); node = nm[1].toLowerCase(); continue; }
+
+      var tm = ln.match(TABLE_RE);
+      if(tm){
+        closeRoute();
+        table = tm[1];
+        if(tables.indexOf(table) === -1) tables.push(table);
+        continue;
+      }
+      if(/^\+\s*=\s*Active Route/.test(ln)) continue;
+
+      var rm = ln.match(ROUTE_RE);
+      if(rm && PREFIX_OK.test(rm[1])){
+        closeRoute();
+        cur = newRoute(node, table, rm[1], rm[2], rm[3], rm[4], rm[5], rm[6]);
+        readNextHopInline(cur, rm[6]);
+        continue;
+      }
+
+      var pm = ln.match(PATH_RE);
+      if(pm && cur){
+        closeRoute();
+        cur = newRoute(node, table, routes.length ? routes[routes.length-1].prefix : "",
+                       pm[1], pm[2], pm[3], pm[4], pm[5]);
+        cur.extraPath = true;
+        readNextHopInline(cur, pm[5]);
+        continue;
+      }
+      if(cur) readNextHopLine(cur, ln);
+    }
+    closeRoute();
+    return { routes:routes, tables:tables };
+  }
+
+  function newRoute(node, table, prefix, marker, proto, pref, metric, rest){
+    return { node:node, table:table, prefix:prefix,
+             active: marker.indexOf("*") !== -1 || marker.indexOf("+") !== -1,
+             marker:marker, protocol:proto, pref:pref, metric:metric || "",
+             age:(rest||"").trim(), paths:[], extraPath:false, src:"show route" };
+  }
+  function readNextHopInline(r, rest){
+    if(!rest) return;
+    if(/\bvia\b|\bReject\b|\bDiscard\b|\bReceive\b|\bLocal\b/.test(rest)) readNextHopLine(r, rest);
+  }
+  function readNextHopLine(r, ln){
+    var selected = /^\s*>/.test(ln) || /\s>\s/.test(ln);
+    var viaM = ln.match(/via\s+([A-Za-z][A-Za-z0-9\/\-:]*\.\d+)/);
+    var toM  = ln.match(/\bto\s+([0-9a-fA-F:.]+)/);
+    if(viaM){
+      r.paths.push({ nh: toM ? toM[1] : "", iface: viaM[1],
+                     kind: /\bLocal\b/.test(ln) ? "local" : (toM ? "via" : "direct"),
+                     selected: selected });
+      return;
+    }
+    if(/\bReject\b/.test(ln))  { r.paths.push({nh:"", iface:"", kind:"reject",  selected:selected}); return; }
+    if(/\bDiscard\b/.test(ln)) { r.paths.push({nh:"", iface:"", kind:"discard", selected:selected}); return; }
+    if(/\bReceive\b/.test(ln)) { r.paths.push({nh:"", iface:"", kind:"receive", selected:selected}); return; }
+    if(/\bResolve\b/.test(ln)) { r.paths.push({nh:"", iface:"", kind:"resolve", selected:selected}); return; }
+  }
+
+  /* ============================ ADDRESS BOOKS ============================ */
+
+  function applyBook(B, rest){
+    var i;
+    if(rest[0] === "address" && rest[1]){
+      var n = rest[1];
+      if(rest[2] === "description") return;
+      if(rest[2] === "dns-name")        { B.addresses[n] = "dns " + (rest[3]||""); return; }
+      if(rest[2] === "range-address")   { B.addresses[n] = (rest[3]||"") + "–" + (rest[5]||""); return; }
+      if(rest[2] === "wildcard-address"){ B.addresses[n] = (rest[3]||"") + " (wildcard)"; return; }
+      if(rest[2]) B.addresses[n] = rest[2];
+      return;
+    }
+    if(rest[0] === "address-set" && rest[1]){
+      var sn = rest[1];
+      if(!B.sets[sn]) B.sets[sn] = [];
+      if(rest[2] === "address" || rest[2] === "address-set"){
+        for(i=3;i<rest.length;i++) push(B.sets[sn], rest[i]);
+      }
+      return;
+    }
+    if(rest[0] === "attach" && rest[1] === "zone"){
+      for(i=2;i<rest.length;i++) push(B.zones, rest[i]);
+    }
+  }
+
+  function addressBooksFromFlat(flat){
+    var books = {}, order = [];
+    function book(name){
+      if(!books[name]){ books[name] = { name:name, addresses:{}, sets:{}, zones:[] }; order.push(name); }
+      return books[name];
+    }
+    walk(flat, ["security","address-book","*"], function(rest, rec){
+      applyBook(book(rec.p[2]), rest);
+    });
+    // Pre-11.2 style: the book lives inside the zone it serves.
+    walk(flat, ["security","zones","security-zone","*","address-book"], function(rest, rec){
+      var B = book("zone " + rec.p[3]);
+      push(B.zones, rec.p[3]);
+      applyBook(B, rest);
+    });
+    return { books:books, order:order };
+  }
+
+  /* ============================ POLICIES ============================ */
+
+  function applyPolicy(P, rest, rec){
+    if(rec.inactive) P.inactive = true;
+    if(!rest.length) return;
+    var i;
+
+    if(rest[0] === "match"){
+      if(rest[1] === "source-address")             { for(i=2;i<rest.length;i++) push(P.src, rest[i]); }
+      else if(rest[1] === "destination-address")   { for(i=2;i<rest.length;i++) push(P.dst, rest[i]); }
+      else if(rest[1] === "application")           { for(i=2;i<rest.length;i++) push(P.app, rest[i]); }
+      else if(rest[1] === "source-identity")       { for(i=2;i<rest.length;i++) push(P.identity, rest[i]); }
+      else if(rest[1] === "source-address-excluded")      P.srcExcluded = true;
+      else if(rest[1] === "destination-address-excluded") P.dstExcluded = true;
+      else if(rest[1] === "from-zone")             { for(i=2;i<rest.length;i++) push(P.globalFrom, rest[i]); }
+      else if(rest[1] === "to-zone")               { for(i=2;i<rest.length;i++) push(P.globalTo, rest[i]); }
+      return;
+    }
+    if(rest[0] === "then"){
+      if(rest[1] === "permit" || rest[1] === "deny" || rest[1] === "reject"){
+        P.action = rest[1];
+        if(rest[2] === "tunnel" && rest[3] === "ipsec-vpn") P.tunnel = rest[4] || "";
+        if(rest[2] === "application-services" && rest[3]) push(P.services, rest[3]);
+        return;
+      }
+      if(rest[1] === "log")   { push(P.log, rest[2]); return; }
+      if(rest[1] === "count") { P.count = true; return; }
+      return;
+    }
+    if(rest[0] === "description")    { P.desc = rest.slice(1).join(" "); return; }
+    if(rest[0] === "scheduler-name") { P.scheduler = rest[1] || ""; return; }
+  }
+
+  function policiesFromFlat(flat){
+    var list = [], byKey = {};
+
+    function pol(from, to, name, global){
+      var k = from + " " + to + " " + name;
+      if(!byKey[k]){
+        byKey[k] = { from:from, to:to, name:name, global:!!global, seq:0, desc:"", scheduler:"",
+                     src:[], dst:[], app:[], identity:[], globalFrom:[], globalTo:[],
+                     srcExcluded:false, dstExcluded:false, action:"", tunnel:"",
+                     log:[], count:false, services:[], inactive:false, notes:[] };
+        list.push(byKey[k]);
+      }
+      return byKey[k];
+    }
+
+    walk(flat, ["security","policies","from-zone","*","to-zone","*","policy","*"], function(rest, rec){
+      applyPolicy(pol(rec.p[3], rec.p[5], rec.p[7], false), rest, rec);
+    });
+    walk(flat, ["security","policies","global","policy","*"], function(rest, rec){
+      applyPolicy(pol("(global)", "(global)", rec.p[4], true), rest, rec);
+    });
+
+    // Junos evaluates first match within a zone pair, so the ordinal matters.
+    var seqBy = {};
+    list.forEach(function(p){
+      var k = p.from + " " + p.to;
+      seqBy[k] = (seqBy[k] || 0) + 1;
+      p.seq = seqBy[k];
+    });
+    return list;
+  }
+
+  function defaultPolicy(flat){
+    var v = "";
+    walk(flat, ["security","policies","default-policy"], function(rest){ if(rest[0]) v = rest[0]; });
+    return v;
+  }
+
+  /* ============================ APPLICATIONS ============================ */
+
+  function appsFromFlat(flat){
+    var apps = {}, sets = {};
+
+    walk(flat, ["applications","application","*"], function(rest, rec){
+      var n = rec.p[2];
+      if(!n || n === "apply-groups") return;
+      var A = apps[n] || (apps[n] = { name:n, protocol:"", dport:"", sport:"", icmp:"", terms:0 });
+      var r = rest;
+      if(r[0] === "term"){ A.terms++; r = r.slice(2); }
+      if(!r.length) return;
+      if(r[0] === "protocol")         { A.protocol = A.protocol || (r[1]||""); return; }
+      if(r[0] === "destination-port") { A.dport = A.dport || r.slice(1).join(","); return; }
+      if(r[0] === "source-port")      { A.sport = A.sport || r.slice(1).join(","); return; }
+      if(r[0] === "icmp-type" || r[0] === "icmp6-type"){ A.icmp = r[1] || ""; return; }
+    });
+
+    walk(flat, ["applications","application-set","*"], function(rest, rec){
+      var n = rec.p[2];
+      if(!n || n === "apply-groups") return;
+      var S = sets[n] || (sets[n] = []);
+      if(rest[0] === "application" || rest[0] === "application-set"){
+        for(var i=1;i<rest.length;i++) push(S, rest[i]);
+      }
+    });
+    return { apps:apps, sets:sets };
+  }
+
+  function appSummary(A){
+    if(!A) return "";
+    if(A.icmp) return "icmp type " + A.icmp;
+    if(A.dport) return (A.protocol || "?") + "/" + A.dport;
+    if(A.terms) return plural(A.terms, "term");
+    return A.protocol || "";
+  }
+
+  /* ============================ IKE / IPSEC FROM CONFIG ============================ */
+
+  // The configuration and the operational output name the same algorithm
+  // differently - aes-256-cbc / aes256_cbc, sha-256 / hmac_sha256_128,
+  // group14 / DH-group-14. Normalise to one shape, then judge, so a single rule
+  // covers a proposal read out of the config and one negotiated on the wire.
+  function algoNorm(v){ return String(v==null?"":v).toLowerCase().replace(/[^a-z0-9]+/g,""); }
+
+  function isWeakEnc(v){
+    var n = algoNorm(v);
+    if(!n) return false;
+    if(n.indexOf("aes") !== -1) return false;
+    return /des|null/.test(n);
+  }
+  function isWeakAuth(v){
+    var n = algoNorm(v);
+    if(!n) return false;
+    if(n.indexOf("md5") !== -1) return true;
+    if(/sha[235]/.test(n)) return false;      // sha-256 / 384 / 512 and the sha-3 family
+    return /sha1/.test(n);
+  }
+  function isWeakDh(v){
+    var m = algoNorm(v).match(/group(\d+)$/);
+    if(!m) return false;
+    var g = parseInt(m[1],10);
+    return g === 1 || g === 2 || g === 5;
+  }
+
+  function vpnsFromFlat(flat){
+    var vpn = {}, vpnOrder = [], gw = {}, ikePol = {}, ikeProp = {}, ipsPol = {}, ipsProp = {};
+
+    function V(n){
+      if(!vpn[n]){
+        vpn[n] = { name:n, bind:"", gwName:"", ipsecPolicy:"", proxyLocal:"", proxyRemote:"",
+                   proxyService:"", establish:"", monitor:false, monitorOpts:[], ts:{}, tsOrder:[],
+                   manual:false, df:"", inactive:false };
+        vpnOrder.push(n);
+      }
+      return vpn[n];
+    }
+    function G(n){
+      if(!gw[n]) gw[n] = { name:n, addresses:[], extIf:"", ikePolicy:"", version:"", localAddr:"",
+                           localId:"", remoteId:"", dpd:"", dynamic:"", generalIkeid:false };
+      return gw[n];
+    }
+    function KP(n){ if(!ikePol[n])  ikePol[n]  = { name:n, mode:"", proposals:[], proposalSet:"", hasPsk:false, cert:"" }; return ikePol[n]; }
+    function KR(n){ if(!ikeProp[n]) ikeProp[n] = { name:n, authMethod:"", dh:"", auth:"", enc:"", life:"" }; return ikeProp[n]; }
+    function PP(n){ if(!ipsPol[n])  ipsPol[n]  = { name:n, proposals:[], proposalSet:"", pfs:"" }; return ipsPol[n]; }
+    function PR(n){ if(!ipsProp[n]) ipsProp[n] = { name:n, protocol:"", auth:"", enc:"", life:"", lifeKb:"" }; return ipsProp[n]; }
+
+    walk(flat, ["security","ipsec","vpn","*"], function(rest, rec){
+      var n = rec.p[3];
+      if(!n || n === "apply-groups") return;
+      var W = V(n);
+      if(rec.inactive) W.inactive = true;
+      if(!rest.length) return;
+      if(rest[0] === "bind-interface")    { W.bind = rest[1] || ""; return; }
+      if(rest[0] === "establish-tunnels") { W.establish = rest.slice(1).join(" "); return; }
+      if(rest[0] === "df-bit")            { W.df = rest[1] || ""; return; }
+      if(rest[0] === "manual")            { W.manual = true; return; }
+      if(rest[0] === "vpn-monitor"){
+        W.monitor = true;
+        if(rest[1]) push(W.monitorOpts, rest.slice(1).join(" "));
+        return;
+      }
+      if(rest[0] === "traffic-selector" && rest[1]){
+        var t = W.ts[rest[1]];
+        if(!t){ t = W.ts[rest[1]] = { name:rest[1], local:"", remote:"" }; W.tsOrder.push(rest[1]); }
+        if(rest[2] === "local-ip")  t.local  = rest[3] || "";
+        if(rest[2] === "remote-ip") t.remote = rest[3] || "";
+        return;
+      }
+      if(rest[0] === "ike"){
+        if(rest[1] === "gateway")      { W.gwName = rest[2] || ""; return; }
+        if(rest[1] === "ipsec-policy") { W.ipsecPolicy = rest[2] || ""; return; }
+        if(rest[1] === "proxy-identity"){
+          if(rest[2] === "local")   W.proxyLocal   = rest[3] || "";
+          if(rest[2] === "remote")  W.proxyRemote  = rest[3] || "";
+          if(rest[2] === "service") W.proxyService = rest[3] || "";
+          return;
+        }
+      }
+    });
+
+    walk(flat, ["security","ike","gateway","*"], function(rest, rec){
+      var n = rec.p[3];
+      if(!n || n === "apply-groups") return;
+      var A = G(n);
+      if(!rest.length) return;
+      if(rest[0] === "address")            { for(var i=1;i<rest.length;i++) push(A.addresses, rest[i]); return; }
+      if(rest[0] === "external-interface") { A.extIf = rest[1] || ""; return; }
+      if(rest[0] === "local-address")      { A.localAddr = rest[1] || ""; return; }
+      if(rest[0] === "ike-policy")         { A.ikePolicy = rest[1] || ""; return; }
+      if(rest[0] === "version")            { A.version = rest.slice(1).join(" "); return; }
+      if(rest[0] === "local-identity")     { A.localId  = rest.slice(1).join(" "); return; }
+      if(rest[0] === "remote-identity")    { A.remoteId = rest.slice(1).join(" "); return; }
+      if(rest[0] === "dead-peer-detection"){ A.dpd = rest.slice(1).join(" ") || "on"; return; }
+      if(rest[0] === "dynamic")            { A.dynamic = rest.slice(1).join(" "); return; }
+      if(rest[0] === "general-ikeid")      { A.generalIkeid = true; return; }
+    });
+
+    walk(flat, ["security","ike","policy","*"], function(rest, rec){
+      var n = rec.p[3];
+      if(!n || n === "apply-groups") return;
+      var P = KP(n);
+      if(!rest.length) return;
+      if(rest[0] === "mode")          { P.mode = rest[1] || ""; return; }
+      if(rest[0] === "proposals")     { for(var i=1;i<rest.length;i++) push(P.proposals, rest[i]); return; }
+      if(rest[0] === "proposal-set")  { P.proposalSet = rest[1] || ""; return; }
+      // The key material itself is deliberately never captured.
+      if(rest[0] === "pre-shared-key"){ P.hasPsk = true; return; }
+      if(rest[0] === "certificate")   { P.cert = rest.slice(1).join(" "); return; }
+    });
+
+    walk(flat, ["security","ike","proposal","*"], function(rest, rec){
+      var n = rec.p[3];
+      if(!n || n === "apply-groups") return;
+      var R = KR(n);
+      if(rest[0] === "authentication-method")         R.authMethod = rest[1] || "";
+      else if(rest[0] === "dh-group")                 R.dh   = rest[1] || "";
+      else if(rest[0] === "authentication-algorithm") R.auth = rest[1] || "";
+      else if(rest[0] === "encryption-algorithm")     R.enc  = rest[1] || "";
+      else if(rest[0] === "lifetime-seconds")         R.life = rest[1] || "";
+    });
+
+    walk(flat, ["security","ipsec","policy","*"], function(rest, rec){
+      var n = rec.p[3];
+      if(!n || n === "apply-groups") return;
+      var P = PP(n);
+      if(rest[0] === "proposals")    { for(var i=1;i<rest.length;i++) push(P.proposals, rest[i]); return; }
+      if(rest[0] === "proposal-set") { P.proposalSet = rest[1] || ""; return; }
+      if(rest[0] === "perfect-forward-secrecy" && rest[1] === "keys"){ P.pfs = rest[2] || ""; return; }
+    });
+
+    walk(flat, ["security","ipsec","proposal","*"], function(rest, rec){
+      var n = rec.p[3];
+      if(!n || n === "apply-groups") return;
+      var R = PR(n);
+      if(rest[0] === "protocol")                      R.protocol = rest[1] || "";
+      else if(rest[0] === "authentication-algorithm") R.auth = rest[1] || "";
+      else if(rest[0] === "encryption-algorithm")     R.enc  = rest[1] || "";
+      else if(rest[0] === "lifetime-seconds")         R.life = rest[1] || "";
+      else if(rest[0] === "lifetime-kilobytes")       R.lifeKb = rest[1] || "";
+    });
+
+    return { vpn:vpn, order:vpnOrder, gw:gw, ikePol:ikePol, ikeProp:ikeProp,
+             ipsPol:ipsPol, ipsProp:ipsProp };
+  }
+
+  // Join the four levels (vpn -> gateway -> policy -> proposal) into one card model.
+  function buildVpnCards(cfg){
+    return cfg.order.map(function(name){
+      var W  = cfg.vpn[name];
+      var G  = W.gwName ? cfg.gw[W.gwName] : null;
+      var K  = G && G.ikePolicy ? cfg.ikePol[G.ikePolicy] : null;
+      var P  = W.ipsecPolicy ? cfg.ipsPol[W.ipsecPolicy] : null;
+
+      return {
+        name:name, vpn:W, gw:G || null, ikePol:K || null, ipsPol:P || null,
+        ikeProps: K ? K.proposals.map(function(n2){ return cfg.ikeProp[n2] || { name:n2, missing:true }; }) : [],
+        ipsProps: P ? P.proposals.map(function(n2){ return cfg.ipsProp[n2] || { name:n2, missing:true }; }) : [],
+        missingGw:     !!(W.gwName && !G),
+        missingIkePol: !!(G && G.ikePolicy && !K),
+        missingIpsPol: !!(W.ipsecPolicy && !P),
+        notes:[], sa:null
+      };
+    });
+  }
+
+  function algoText(list, setName){
+    if(setName) return "proposal-set " + setName;
+    if(!list.length) return "";
+    return list.map(function(p){
+      if(p.missing) return p.name + " (undefined)";
+      return [p.enc, p.auth, p.dh].filter(Boolean).join(" / ") || p.name;
+    }).join("  |  ");
+  }
+
+  function vpnNotes(card, ifaceZone){
+    var out = [], W = card.vpn, G = card.gw, K = card.ikePol, P = card.ipsPol;
+
+    if(W.inactive)         out.push({level:"warn", text:"This VPN is marked inactive in the configuration. It is present but not applied."});
+    if(card.missingGw)     out.push({level:"bad",  text:"References IKE gateway " + W.gwName + ", which is not defined in this configuration."});
+    if(card.missingIkePol) out.push({level:"bad",  text:"The gateway references IKE policy " + G.ikePolicy + ", which is not defined in this configuration."});
+    if(card.missingIpsPol) out.push({level:"bad",  text:"References IPsec policy " + W.ipsecPolicy + ", which is not defined in this configuration."});
+
+    if(!W.bind){
+      out.push({level:"info", text:"No bind-interface. This is a policy-based VPN, so traffic selection comes from the security policy that names it rather than from a route."});
+    } else if(!ifaceZone[W.bind]){
+      out.push({level:"bad", text:W.bind + " is not bound to any security zone. Traffic cannot be policed in or out of this tunnel until it is."});
+    }
+
+    if(G && !G.addresses.length && !G.dynamic){
+      out.push({level:"warn", text:"The gateway has no peer address. Either it is a dynamic-peer gateway whose dynamic statement did not survive the paste, or the address is genuinely missing."});
+    }
+    if(G && !G.extIf){
+      out.push({level:"warn", text:"The gateway has no external-interface, so IKE has no source to negotiate from."});
+    }
+
+    var allEnc = [], allAuth = [], allDh = [];
+    card.ikeProps.concat(card.ipsProps).forEach(function(p){
+      if(p.enc)  allEnc.push(p.enc);
+      if(p.auth) allAuth.push(p.auth);
+      if(p.dh)   allDh.push(p.dh);
+    });
+    if(P && P.pfs) allDh.push(P.pfs);
+
+    var wE = uniq(allEnc.filter(isWeakEnc));
+    var wA = uniq(allAuth.filter(isWeakAuth));
+    var wD = uniq(allDh.filter(isWeakDh));
+    if(wE.length) out.push({level:"warn", text:"Deprecated encryption in the proposals: " + wE.join(", ")});
+    if(wA.length) out.push({level:"warn", text:"Legacy authentication in the proposals: " + wA.join(", ")});
+    if(wD.length) out.push({level:"warn", text:"Weak Diffie-Hellman group: " + wD.join(", ") + ". Group 14 is the current floor."});
+
+    if(P && !P.pfs && !P.proposalSet){
+      out.push({level:"warn", text:"No perfect forward secrecy on the IPsec policy. Phase 2 keys are derived from the phase 1 key."});
+    }
+    if(K && /aggressive/i.test(K.mode)){
+      out.push({level:"warn", text:"IKEv1 aggressive mode - the identity exchange is not encrypted."});
+    }
+    if(K && K.hasPsk){
+      out.push({level:"info", text:"A pre-shared key is configured. It is deliberately not read or shown by this report."});
+    }
+    if(K && K.proposalSet){
+      out.push({level:"info", text:"Phase 1 uses the built-in proposal-set " + K.proposalSet + ", so the algorithms are not spelled out in the configuration."});
+    }
+    if(P && P.proposalSet){
+      out.push({level:"info", text:"Phase 2 uses the built-in proposal-set " + P.proposalSet + ", so the algorithms are not spelled out in the configuration."});
+    }
+
+    var wildLocal  = /^0\.0\.0\.0\/0$|^::\/0$/.test(W.proxyLocal);
+    var wildRemote = /^0\.0\.0\.0\/0$|^::\/0$/.test(W.proxyRemote);
+    if(wildLocal && wildRemote){
+      out.push({level:"info", text:"Wildcard proxy IDs on both sides - traffic selection comes from the routes pointing at " +
+        (W.bind || "the tunnel interface") + ", not from this SA."});
+    } else if(W.proxyLocal || W.proxyRemote){
+      out.push({level:"info", text:"Scoped proxy IDs: local " + (W.proxyLocal||"-") + ", remote " +
+        (W.proxyRemote||"-") + ". Both peers must match these exactly."});
+    }
+    if(W.establish && /immediately/i.test(W.establish) && !W.monitor){
+      out.push({level:"info", text:"Tunnels establish immediately but VPN monitoring is off, so a black-holed tunnel will stay up."});
+    }
+    return out;
+  }
+
+  /* ============================ IKE SECURITY ASSOCIATIONS (operational) ============================
+     Phase 1. The configuration says which proposal should be negotiated; this says
+     what actually was. Both the detail form and the one-line summary form are read,
+     because the summary is what most people paste first.                          */
+
+  // "203.0.113.10:500" -> address + port, but only when stripping the port leaves
+  // something that is still an address. An IPv6 literal is left alone.
+  function stripPort(v){
+    var s = String(v == null ? "" : v).trim();
+    var m = s.match(/^(.*):(\d+)$/);
+    if(m && !ipBits(s) && ipBits(m[1])) return { addr:m[1], port:m[2] };
+    return { addr:s, port:"" };
+  }
+
+  function ikeState(raw){
+    var s = String(raw || "").trim().toUpperCase();
+    if(/^UP|MATURE/.test(s))  return "up";
+    if(/^DOWN|^NOT/.test(s))  return "down";
+    return s ? "idle" : "";
+  }
+
+  var IKE_SUMMARY_HEAD = /^\s*Index\s+State\s+Initiator\s+cookie/i;
+  var IKE_SUMMARY_ROW  = /^\s*(\d+)\s+(\S+)\s+([0-9a-fA-F]{8,})\s+([0-9a-fA-F]{8,})\s+(\S+)\s+(\S+)\s*$/;
+
+  function parseIKE(text){
+    if(!text || !text.trim()) return [];
+    var lines = text.replace(/\r\n?/g,"\n").split("\n");
+    var out = [], blocks = [], cur = null, node = "", inSummary = false;
+
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+
+      var nm = ln.match(NODE_RE);
+      if(nm){ node = nm[1].toLowerCase(); if(cur){ blocks.push(cur); cur = null; } inSummary = false; continue; }
+
+      if(IKE_SUMMARY_HEAD.test(ln)){
+        if(cur){ blocks.push(cur); cur = null; }
+        inSummary = true;
+        continue;
+      }
+
+      if(/^\s*IKE peer\s+\S/i.test(ln)){
+        if(cur) blocks.push(cur);
+        cur = { node:node, lines:[ln] };
+        inSummary = false;
+        continue;
+      }
+
+      if(inSummary){
+        var rm = ln.match(IKE_SUMMARY_ROW);
+        if(rm){
+          var rem = stripPort(rm[6]);
+          out.push(ikeRecord({
+            node:node, index:rm[1], state:rm[2], initCookie:rm[3], respCookie:rm[4],
+            exchange:rm[5], peer:rem.addr, summaryOnly:true
+          }));
+          continue;
+        }
+        if(ln.trim()) inSummary = false;
+      }
+
+      if(cur) cur.lines.push(ln);
+    }
+    if(cur) blocks.push(cur);
+
+    blocks.forEach(function(b){ out.push(parseIKEBlock(b)); });
+    return out;
+  }
+
+  function parseIKEBlock(b){
+    var head = b.lines.join("\n");
+    var local  = stripPort(grab(head, /(?:^|\n)\s*Local:\s*([^\s,]+)/i));
+    var remote = stripPort(grab(head, /(?:^|\n)\s*Remote:\s*([^\s,]+)/i));
+    var peer   = grab(head, /IKE peer\s+([^\s,]+)/i);
+
+    return ikeRecord({
+      node:        b.node,
+      peer:        peer || remote.addr,
+      index:       grab(head, /\bIndex\s+(\d+)/i),
+      gwName:      grab(head, /Gateway Name:\s*(\S+)/i),
+      role:        grab(head, /(?:^|\n)\s*Role:\s*([^\s,]+)/i),
+      state:       grab(head, /(?:^|\n)\s*Role:[^\n]*?\bState:\s*([^\s,]+)/i) ||
+                   grab(head, /(?:^|\n)\s*State:\s*([^\s,]+)/i),
+      initCookie:  grab(head, /Initiator cookie:\s*([^\s,]+)/i),
+      respCookie:  grab(head, /Responder cookie:\s*([^\s,]+)/i),
+      exchange:    grab(head, /Exchange type:\s*([^\s,]+)/i),
+      authMethod:  grab(head, /Authentication method:\s*([^\s,]+)/i),
+      local:       local.addr,
+      localPort:   local.port,
+      remotePort:  remote.port,
+      peerId:      grab(head, /Peer ike-id:\s*(\S+)/i),
+      lifetime:    toInt(grab(head, /Lifetime:\s*Expires in\s*(\d+)\s*seconds/i)),
+      // "Authentication method:" must not be read as the authentication algorithm.
+      auth:        grab(head, /(?:^|\n)\s*Authentication\s*:\s*(\S+)/i),
+      enc:         grab(head, /(?:^|\n)\s*Encryption\s*:\s*(\S+)/i),
+      prf:         grab(head, /Pseudo random function\s*:\s*(\S+)/i),
+      dh:          grab(head, /Diffie-Hellman group\s*:\s*(\S+)/i),
+      created:     grab(head, /IPSec security associations:\s*(\d+)\s*created/i),
+      deleted:     grab(head, /IPSec security associations:[^\n]*?(\d+)\s*deleted/i),
+      inProgress:  grab(head, /Phase 2 negotiations in progress:\s*(\d+)/i),
+      summaryOnly: false
+    });
+  }
+
+  function ikeRecord(k){
+    k.gwName     = k.gwName || "";
+    k.role       = k.role || "";
+    k.status     = ikeState(k.state);
+    k.up         = k.status === "up";
+    k.lifetime   = (k.lifetime === undefined) ? null : k.lifetime;
+    k.local      = k.local || "";
+    k.enc        = k.enc || "";
+    k.auth       = k.auth || "";
+    k.dh         = k.dh || "";
+    k.notes      = ikeNotes(k);
+    return k;
+  }
+
+  function ikeNotes(k){
+    var out = [];
+    if(k.status === "down"){
+      out.push({level:"warn", text:"Phase 1 is " + (k.state || "down") +
+        ". No IPsec SA can come up under it until IKE completes."});
+    } else if(k.status === "idle" && k.state){
+      out.push({level:"info", text:"Phase 1 state reads " + k.state + "."});
+    }
+    if(isWeakEnc(k.enc) || isWeakAuth(k.auth) || isWeakDh(k.dh)){
+      var weak = [];
+      if(isWeakEnc(k.enc))  weak.push(k.enc);
+      if(isWeakAuth(k.auth)) weak.push(k.auth);
+      if(isWeakDh(k.dh))    weak.push(k.dh);
+      out.push({level:"warn", text:"Phase 1 negotiated deprecated algorithms: " + weak.join(", ") +
+        ". This is what the peers actually agreed on, whatever the proposals allow."});
+    }
+    if(k.inProgress && parseInt(k.inProgress,10) > 0){
+      out.push({level:"warn", text:k.inProgress + " phase 2 negotiation" +
+        (k.inProgress === "1" ? " is" : "s are") + " still in progress under this IKE SA."});
+    }
+    if(k.lifetime !== null && k.lifetime < 300){
+      out.push({level:"info", text:"Phase 1 rekey is imminent - under five minutes of lifetime remaining."});
+    }
+    return out;
+  }
+
+  // Cross-checks that only exist once both the configuration and the live phase 1
+  // state are on the page.
+  function liveVpnNotes(card){
+    var out = [], G = card.gw || {}, ikes = card.ikes || [];
+    if(!ikes.length) return out;
+
+    var anyUp = ikes.some(function(k){ return k.up; });
+    if(anyUp && !card.sa){
+      out.push({level:"warn", text:"Phase 1 is up but no IPsec SA was reported for this VPN. " +
+        "The peers agreed on IKE; phase 2 has not installed."});
+    }
+    if(!anyUp && card.sa && card.sa.status === "up"){
+      out.push({level:"info", text:"An IPsec SA is installed but the IKE SA in this paste is not up. " +
+        "The two captures were most likely taken at different moments."});
+    }
+
+    var cfgV2 = /v2/i.test(G.version || ""), cfgV1 = /v1/i.test(G.version || "");
+    ikes.forEach(function(k){
+      if(!k.exchange || !(cfgV1 || cfgV2)) return;
+      var liveV2 = /2/.test(k.exchange);
+      if(cfgV2 && !liveV2){
+        out.push({level:"warn", text:"The gateway is configured " + G.version +
+          " but phase 1 negotiated " + k.exchange + "."});
+      } else if(cfgV1 && liveV2){
+        out.push({level:"info", text:"The gateway is configured " + G.version +
+          " but phase 1 negotiated " + k.exchange + "."});
+      }
+    });
+    return out;
+  }
+
+  /* ============================ SECURITY ASSOCIATIONS (operational) ============================ */
+
+  function grab(text, re, idx){
+    var m = text.match(re);
+    return m ? String(m[idx||1]).trim() : "";
+  }
+  function toInt(s){ var n = parseInt(s,10); return isNaN(n) ? null : n; }
+
+  // "not installed" must not match a naive /installed/ test.
+  function isInstalled(s){ return /^installed\b/i.test(String(s||"").trim()); }
+
+  function cleanIdentity(raw){
+    if(!raw) return "";
+    var m = raw.match(/=\s*([^)\s]+)\s*\)/);
+    if(m) return m[1];
+    var any = raw.match(/([0-9a-fA-F:.]+\/\d+)/);
+    if(any) return any[1];
+    return raw.trim();
+  }
+
+  function parseSAs(text){
+    if(!text || !text.trim()) return [];
+    var lines = text.replace(/\r\n?/g,"\n").split("\n");
+    var blocks = [], cur = null, node = "";
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      var nm = ln.match(NODE_RE);
+      if(nm){ node = nm[1].toLowerCase(); if(cur){ blocks.push(cur); cur = null; } continue; }
+      if(/^\s*ID:\s*\d+/.test(ln)){
+        if(cur) blocks.push(cur);
+        cur = { node:node, lines:[ln] };
+      } else if(cur){
+        cur.lines.push(ln);
+      }
+    }
+    if(cur) blocks.push(cur);
+
+    return blocks.map(function(b){
+      var sa = parseSABlock(b.lines);
+      sa.node = b.node;
+      if(sa.status === "down" && !sa.directions.length && !sa.downReason && sa.node && sa.node !== "node0"){
+        sa.status = "backup";
+      }
+      sa.notes = saNotes(sa);
+      return sa;
+    });
+  }
+
+  function parseSABlock(blockLines){
+    var headLines = [], dirs = [], active = null, i;
+    for(i=0;i<blockLines.length;i++){
+      var ln = blockLines[i];
+      var dm = ln.match(/^\s*Direction:\s*(inbound|outbound)\b/i);
+      if(dm){
+        if(active) dirs.push(active);
+        active = { dir:dm[1].toLowerCase(), lines:[ln] };
+      } else if(active){ active.lines.push(ln); }
+      else { headLines.push(ln); }
+    }
+    if(active) dirs.push(active);
+    var head = headLines.join("\n");
+
+    var sa = {
+      id:          grab(head, /\bID:\s*(\d+)/),
+      name:        grab(head, /VPN Name:\s*(.+)/).replace(/\s*,\s*$/,"") || "(unnamed)",
+      localGw:     grab(head, /Local Gateway:\s*([^\s,]+)/),
+      remoteGw:    grab(head, /Remote Gateway:\s*([^\s,]+)/),
+      localIdRaw:  grab(head, /Local Identity:\s*(.+)/),
+      remoteIdRaw: grab(head, /Remote Identity:\s*(.+)/),
+      version:     grab(head, /(?:^|\n)\s*Version:\s*(\S+)/),
+      bind:        grab(head, /Bind-interface:\s*(\S+)/),
+      fail:        grab(head, /Fail#:\s*(\d+)/),
+      downReason:  grab(head, /(?:^|\n)\s*Tunnel Down Reason:\s*(.+)/),
+      lastDown:    grab(head, /Last Tunnel Down Reason:\s*(.+)/),
+      tsName:      grab(head, /Traffic-selector:\s*(\S+)/),
+      directions:  []
+    };
+    sa.localId  = cleanIdentity(sa.localIdRaw);
+    sa.remoteId = cleanIdentity(sa.remoteIdRaw);
+
+    for(var d=0; d<dirs.length; d++){
+      var t = dirs[d].lines.join("\n");
+      var pae = t.match(/Protocol:\s*([^,\n]+),\s*Authentication:\s*([^,\n]+),\s*Encryption:\s*([^\n]+)/i);
+      var mts = t.match(/Mode:\s*([^,\n]+),\s*Type:\s*([^,\n]+),\s*State:\s*([^,\n]+)/i);
+      sa.directions.push({
+        dir:      dirs[d].dir,
+        spi:      grab(t, /SPI:\s*([^\s,]+)/),
+        hard:     toInt(grab(t, /Hard lifetime:\s*Expires in\s*(\d+)\s*seconds/i)),
+        soft:     toInt(grab(t, /Soft lifetime:\s*Expires in\s*(\d+)\s*seconds/i)),
+        mode:     mts ? mts[1].trim() : "",
+        type:     mts ? mts[2].trim() : "",
+        state:    mts ? mts[3].trim() : "",
+        protocol: pae ? pae[1].trim() : "",
+        auth:     pae ? pae[2].trim() : "",
+        enc:      pae ? pae[3].trim() : ""
+      });
+    }
+    sa.inbound  = sa.directions.filter(function(x){ return x.dir === "inbound";  })[0] || null;
+    sa.outbound = sa.directions.filter(function(x){ return x.dir === "outbound"; })[0] || null;
+
+    var installed = sa.directions.filter(function(x){ return isInstalled(x.state); }).length;
+    if(!sa.directions.length)  sa.status = "down";
+    else if(installed >= 2)    sa.status = "up";
+    else if(installed === 1)   sa.status = "partial";
+    else                       sa.status = "down";
+    return sa;
+  }
+
+  function saNotes(sa){
+    var out = [];
+    if(sa.status === "backup"){
+      out.push({level:"info", text:"No SA detail reported on " + sa.node + ". On a chassis cluster that is expected for the backup node - check the primary node's block for the live state."});
+    } else if(sa.status === "down"){
+      out.push({level:"warn", text:"Tunnel is down" + (sa.downReason ? " - " + sa.downReason : "") +
+        (sa.lastDown ? " (last down: " + sa.lastDown + ")" : "")});
+    } else if(sa.status === "partial"){
+      out.push({level:"warn", text:"Only one direction is installed - inbound and outbound SAs are out of step."});
+    }
+    var weakE = uniq(sa.directions.filter(function(d){ return isWeakEnc(d.enc); }).map(function(d){ return d.enc; }));
+    var weakA = uniq(sa.directions.filter(function(d){ return isWeakAuth(d.auth); }).map(function(d){ return d.auth; }));
+    if(weakE.length) out.push({level:"warn", text:"Deprecated encryption in use: " + weakE.join(", ")});
+    if(weakA.length) out.push({level:"warn", text:"Legacy authentication in use: " + weakA.join(", ")});
+    var f = parseInt(sa.fail,10);
+    if(f > 0) out.push({level:"warn", text:"Negotiation failures recorded: " + f});
+    return out;
+  }
+
+  /* ============================ CORRELATION ============================
+     Routes have no zone of their own. The join is
+        route -> next-hop egress interface -> zone
+     and nothing else attributes a route to a zone.                        */
+
+  function buildLegs(routes, ifaceMap, key){
+    var legs = [];
+    routes.forEach(function(r){
+      r.paths.forEach(function(p){
+        var z = p.iface ? ifaceMap[key(r.node, p.iface)] : null;
+        legs.push({
+          node:r.node, table:r.table, prefix:r.prefix, active:r.active,
+          protocol:r.protocol, pref:r.pref, metric:r.metric, src:r.src,
+          nh:p.nh, iface:p.iface, kind:p.kind, selected:p.selected,
+          zone: z ? z.name : "",
+          unzoned: !!(p.iface && !z)
+        });
+      });
+    });
+    return legs;
+  }
+
+  function correlate(zones, routes){
+    // Node banners turn up in one capture and not the other. Only key on node
+    // when BOTH sides report one, otherwise the join silently misses everything.
+    var zonesHaveNode  = zones.some(function(z){ return !!z.node; });
+    var routesHaveNode = routes.some(function(r){ return !!r.node; });
+    var joinOnNode = zonesHaveNode && routesHaveNode;
+
+    function key(node, iface){ return (joinOnNode ? (node||"") : "") + "|" + iface; }
+
+    var ifaceMap = {};
+    zones.forEach(function(z){
+      z.interfaces.forEach(function(i){ ifaceMap[key(z.node, i)] = z; });
+    });
+
+    var legs = buildLegs(routes, ifaceMap, key);
+
+    zones.forEach(function(z){ z.routes = []; z.tables = []; });
+    legs.forEach(function(l){
+      var z = l.iface ? ifaceMap[key(l.node, l.iface)] : null;
+      if(!z) return;
+      z.routes.push(l);
+      if(l.table && z.tables.indexOf(l.table) === -1) z.tables.push(l.table);
+    });
+    return legs;
+  }
+
+  function zoneNotes(z, haveRoutes){
+    var out = [];
+    if(z.kind === "functional"){
+      out.push({level:"info", text:"Functional zone - management traffic only. It cannot be used as a from-zone or to-zone in a security policy."});
+    }
+    if(z.inactive){
+      out.push({level:"warn", text:"Marked inactive in the configuration. It is present but not applied."});
+    }
+    if(!z.interfaces.length){
+      out.push({level:"warn", text:"No interfaces bound. Policies referencing this zone will never match traffic."});
+    }
+    if((z.notConfigured||[]).length){
+      out.push({level:"bad", text:"Bound to " + z.notConfigured.join(", ") +
+        ", which " + isAre(z.notConfigured.length) + " not configured under the interfaces hierarchy in this paste."});
+    }
+    if(z.dupes.length){
+      out.push({level:"bad", text:"Also listed under another zone: " + z.dupes.join(", ") +
+        ". A logical interface belongs to exactly one security zone."});
+    }
+    if(haveRoutes && z.interfaces.length && !z.routes.length){
+      out.push({level:"warn", text:"Interfaces are bound but no route reaches this zone. Nothing will be forwarded toward it."});
+    }
+    if(z.tables.length > 1){
+      out.push({level:"info", text:"Reached from more than one routing table: " + z.tables.join(", ") +
+        ". The interfaces in this zone sit in different routing instances."});
+    }
+    if(z.kind === "security" && !z.screen){
+      out.push({level:"info", text:"No screen applied."});
+    }
+    return out;
+  }
+
+  function policyNotes(p, zoneNames, vpnNames){
+    var out = [];
+    if(!p.action){
+      out.push({level:"bad", text:"No then action. Junos will not commit a policy without one, so this paste is incomplete."});
+    }
+    if(p.inactive){
+      out.push({level:"warn", text:"Marked inactive - present in the configuration but not evaluated."});
+    }
+    if(!p.global){
+      if(zoneNames.length && zoneNames.indexOf(p.from) === -1){
+        out.push({level:"bad", text:"From-zone " + p.from + " is not defined under security zones."});
+      }
+      if(zoneNames.length && zoneNames.indexOf(p.to) === -1){
+        out.push({level:"bad", text:"To-zone " + p.to + " is not defined under security zones."});
+      }
+    }
+    if(p.tunnel && vpnNames.length && vpnNames.indexOf(p.tunnel) === -1){
+      out.push({level:"bad", text:"Sends traffic into IPsec VPN " + p.tunnel + ", which is not defined under security ipsec."});
+    }
+    if(p.shadowedBy){
+      out.push({level:"warn", text:"Unreachable. Policy " + p.shadowedBy +
+        " earlier in this zone pair already matches any source, any destination and any application, and Junos stops at the first match."});
+    }
+    if(p.action === "permit" && p.src.length === 1 && p.src[0] === "any" &&
+       p.dst.length === 1 && p.dst[0] === "any" &&
+       p.app.length === 1 && p.app[0] === "any" && !p.tunnel){
+      out.push({level:"warn", text:"Permits any source to any destination on any application."});
+    }
+    return out;
+  }
+
+  // First match wins within a zone pair, so anything after a catch-all permit or
+  // deny in the same pair can never be reached.
+  function markShadowed(policies){
+    var catchAll = {};
+    policies.forEach(function(p){
+      var k = p.from + " " + p.to;
+      if(catchAll[k] && !p.inactive) p.shadowedBy = catchAll[k];
+      if(p.inactive || !p.action) return;
+      var anyAll = p.src.length === 1 && p.src[0] === "any" &&
+                   p.dst.length === 1 && p.dst[0] === "any" &&
+                   p.app.length === 1 && p.app[0] === "any" &&
+                   !p.srcExcluded && !p.dstExcluded && !p.identity.length && !p.scheduler;
+      if(anyAll && !catchAll[k]) catchAll[k] = p.name;
+    });
+  }
+
+  /* ============================ ADDRESS RESOLUTION ============================ */
+
+  function isIpLiteral(s){
+    if(/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(s)) return true;
+    if(s.indexOf(":") !== -1 && /^[0-9A-Fa-f:]+(\/\d{1,3})?$/.test(s)) return true;
+    return false;
+  }
+
+  function bookForZone(abooks, zoneName){
+    var merged = { addresses:{}, sets:{} }, k;
+    function mergeIn(B){
+      if(!B) return;
+      for(k in B.addresses) if(B.addresses.hasOwnProperty(k)) merged.addresses[k] = B.addresses[k];
+      for(k in B.sets)      if(B.sets.hasOwnProperty(k))      merged.sets[k]      = B.sets[k];
+    }
+    mergeIn(abooks.books["global"]);
+    // A book attached to the zone takes precedence over the global book.
+    abooks.order.forEach(function(n){
+      var B = abooks.books[n];
+      if(n !== "global" && B.zones.indexOf(zoneName) !== -1) mergeIn(B);
+    });
+    return merged;
+  }
+
+  function resolveAddr(token, data, depth, seen){
+    if(!token) return [];
+    if(token === "any" || token === "any-ipv4" || token === "any-ipv6"){
+      return [{kind:"any", label:token}];
+    }
+    if(data.addresses[token]){
+      return [{kind:"addr", label:token, sub:data.addresses[token]}];
+    }
+    if(data.sets[token]){
+      if(seen[token]) return [{kind:"set", label:token, sub:"recursive reference"}];
+      seen[token] = 1;
+      var kids = [];
+      if(depth < 4){
+        data.sets[token].forEach(function(m){ kids = kids.concat(resolveAddr(m, data, depth+1, seen)); });
+      }
+      delete seen[token];
+      return [{kind:"set", label:token, sub:plural(data.sets[token].length, "member"), children:kids}];
+    }
+    if(isIpLiteral(token)) return [{kind:"addr", label:token}];
+    return [{kind:"unres", label:token, sub:"not in the address book"}];
+  }
+
+  function resolveApp(token, appdata, depth, seen){
+    if(!token) return [];
+    if(token === "any") return [{kind:"any", label:token}];
+    if(appdata.sets[token]){
+      if(seen[token]) return [{kind:"set", label:token, sub:"recursive reference"}];
+      seen[token] = 1;
+      var kids = [];
+      if(depth < 4){
+        appdata.sets[token].forEach(function(m){ kids = kids.concat(resolveApp(m, appdata, depth+1, seen)); });
+      }
+      delete seen[token];
+      return [{kind:"set", label:token, sub:plural(appdata.sets[token].length, "member"), children:kids}];
+    }
+    if(appdata.apps[token]) return [{kind:"app", label:token, sub:appSummary(appdata.apps[token])}];
+    if(/^junos-/i.test(token)) return [{kind:"app", label:token, sub:"predefined"}];
+    return [{kind:"unres", label:token, sub:"not defined under applications"}];
+  }
+
+  /* ============================ MODEL ============================ */
+
+  function mergeRoutes(cfgRoutes, opRoutes, opTables){
+    if(!opRoutes.length) return { routes:cfgRoutes, superseded:0, missing:[] };
+    var seen = {}, out = opRoutes.slice(), missing = [], superseded = 0;
+    opRoutes.forEach(function(r){ seen[r.table + "|" + r.prefix] = true; });
+    cfgRoutes.forEach(function(r){
+      if(seen[r.table + "|" + r.prefix]){ superseded++; return; }
+      out.push(r);
+      // Only a table the paste actually covered can be said to be missing a route.
+      // A route in an instance table is not absent from a RIB that was never shown.
+      if(r.protocol === "Static" && opTables.indexOf(r.table) !== -1) missing.push(r);
+    });
+    return { routes:out, superseded:superseded, missing:missing };
+  }
+
+  // Two routes are the same route when every field of them is. Used only to drop a
+  // capture that was supplied twice, so it has to be exact - anything looser would
+  // silently swallow a real second path.
+  function routeKey(r){
+    return [r.node, r.table, r.prefix, r.protocol, r.pref, r.metric, r.marker, r.src,
+            r.paths.map(function(pa){ return pa.kind + ":" + pa.iface + ":" + pa.nh; }).join(",")
+           ].join("|");
+  }
+
+  // The extra argument carries the optional operational panes. Each source is parsed
+  // on its own rather than as one blob, for two reasons: every box can then say what
+  // it alone contributed, and a capture supplied twice - pasted into the configuration
+  // box and again into a pane, which is exactly what happens with a session capture or
+  // an RSI - is counted once instead of doubling the route table.
+  function parseConfig(text, extra){
+    text  = String(text == null ? "" : text);
+    extra = extra || {};
+    var sources = [
+      { key:"config",    text:text },
+      { key:"routePane", text:String(extra.routes == null ? "" : extra.routes) },
+      { key:"saPane",    text:String(extra.sas    == null ? "" : extra.sas) },
+      { key:"ikePane",   text:String(extra.ike    == null ? "" : extra.ike) }
+    ];
+    var all = sources.map(function(x){ return x.text; }).join("\n");
+
+    var flat  = flatten(all);
+    var ifx   = parseInterfaces(flat);
+    var zones = zonesFromFlat(flat);
+    var inst  = instancesFromFlat(flat);
+    var cr    = configRoutes(flat, ifx, inst);
+
+    var opRoutes = [], opTables = [], sas = [], ikes = [];
+    var opSources = { routes:{}, sas:{}, ike:{} };
+    var opDuplicates = { routes:0, sas:0, ike:0 };
+    var seenR = {}, seenS = {}, seenK = {};
+
+    sources.forEach(function(src){
+      if(!src.text.trim()) return;
+      var nR = 0, nS = 0, nK = 0;
+
+      parseRoutes(src.text).routes.forEach(function(r){
+        nR++;
+        var k = routeKey(r);
+        if(seenR[k]){ opDuplicates.routes++; return; }
+        seenR[k] = 1;
+        opRoutes.push(r);
+        if(r.table) push(opTables, r.table);
+      });
+      parseSAs(src.text).forEach(function(sa){
+        nS++;
+        var k = (sa.node||"") + "|" + sa.id + "|" + sa.name;
+        if(seenS[k]){ opDuplicates.sas++; return; }
+        seenS[k] = 1;
+        sas.push(sa);
+      });
+      parseIKE(src.text).forEach(function(kk){
+        nK++;
+        var k = (kk.node||"") + "|" + (kk.index||"") + "|" + (kk.peer||"") + "|" + (kk.gwName||"");
+        if(seenK[k]){ opDuplicates.ike++; return; }
+        seenK[k] = 1;
+        ikes.push(kk);
+      });
+
+      opSources.routes[src.key] = nR;
+      opSources.sas[src.key]    = nS;
+      opSources.ike[src.key]    = nK;
+    });
+
+    var op = { routes:opRoutes, tables:opTables };
+    var pols  = policiesFromFlat(flat);
+    var books = addressBooksFromFlat(flat);
+    var apps  = appsFromFlat(flat);
+    var vcfg  = vpnsFromFlat(flat);
+    var cards = buildVpnCards(vcfg);
+
+    var host = "", ver = "";
+    walk(flat, ["system","host-name"], function(rest){ host = rest.join(" "); });
+    walk(flat, ["version"], function(rest){ ver = rest.join(" "); });
+
+    var merged = mergeRoutes(cr.routes, op.routes, op.tables);
+    var routes = merged.routes;
+    var tables = uniq(routes.map(function(r){ return r.table; }).filter(Boolean));
+
+    // Zone <-> interface cross-checks, both directions.
+    var ifaceZone = {};
+    zones.forEach(function(z){
+      z.notConfigured = [];
+      z.interfaces.forEach(function(i){
+        ifaceZone[i] = z.name;
+        if(!ifx.units[i]) z.notConfigured.push(i);
+      });
+    });
+    ifx.order.forEach(function(n){ ifx.units[n].zone = ifaceZone[n] || ""; });
+
+    // An interface a zone claims but the interfaces hierarchy never defines is
+    // still a real binding, so it belongs in the interface list with a flag.
+    zones.forEach(function(z){
+      z.notConfigured.forEach(function(i){
+        if(ifx.units[i]) return;
+        var dot = i.lastIndexOf(".");
+        ifx.units[i] = { name:i, phys:dot>0?i.slice(0,dot):i, unit:dot>0?i.slice(dot+1):"",
+                         desc:"", vlan:"", disabled:false, inactive:false, addrs:[], families:[],
+                         zone:z.name, instance:"", notConfigured:true };
+        ifx.order.push(i);
+      });
+    });
+
+    var legs = correlate(zones, routes);
+    zones.forEach(function(z){ z.notes = zoneNotes(z, routes.length > 0); });
+
+    var zoneNames = zones.map(function(z){ return z.name; });
+    markShadowed(pols);
+    pols.forEach(function(p){ p.notes = policyNotes(p, zoneNames, vcfg.order); });
+
+    // Live SA detail, when it was pasted in, lands on the VPN card it belongs to.
+    var byName = {}, byGw = {}, byPeer = {};
+    cards.forEach(function(c){
+      c.ikes = [];
+      byName[c.name] = c;
+      if(c.vpn.gwName) byGw[c.vpn.gwName] = c;
+      if(c.gw) c.gw.addresses.forEach(function(a){ if(!byPeer[a]) byPeer[a] = c; });
+    });
+    var orphanSAs = [];
+    sas.forEach(function(sa){
+      if(byName[sa.name]) byName[sa.name].sa = sa;
+      else orphanSAs.push(sa);
+    });
+
+    // Phase 1 has no VPN name to key on - it belongs to a gateway. Match on the
+    // gateway name when the output carries one, otherwise on the peer address.
+    var orphanIKE = [];
+    ikes.forEach(function(k){
+      var c = (k.gwName && byGw[k.gwName]) || (k.peer && byPeer[k.peer]) || null;
+      if(c) c.ikes.push(k);
+      else orphanIKE.push(k);
+    });
+
+    cards.forEach(function(c){
+      c.notes     = vpnNotes(c, ifaceZone);
+      c.liveNotes = liveVpnNotes(c);
+    });
+
+    return {
+      flat:flat, host:host, version:ver,
+      ifx:ifx, zones:zones, inst:inst,
+      routes:routes, tables:tables, legs:legs,
+      cfgRouteCount: cr.routes.length, opRouteCount: op.routes.length,
+      opSources:opSources, opDuplicates:opDuplicates,
+      supersededRoutes: merged.superseded, missingStatics: merged.missing,
+      unresolvedNh: cr.unresolved,
+      policies:pols, defaultPolicy:defaultPolicy(flat),
+      books:books, apps:apps, vpnCfg:vcfg, vpns:cards,
+      sas:sas, orphanSAs:orphanSAs, ikes:ikes, orphanIKE:orphanIKE,
+      ifaceZone:ifaceZone,
+      groups: uniq(flat.filter(function(r){ return !!r.grp; }).map(function(r){ return r.grp; })),
+      dynamicProtocols: ["ospf","ospf3","bgp","isis","rip","ripng"].filter(function(p){
+        return has(flat, ["protocols", p]);
+      }),
+      stmtCount: flat.length
+    };
+  }
+
+  /* ============================ STATE ============================ */
+
+  var EMPTY = {
+    flat:[], host:"", version:"", ifx:{units:{}, order:[], phys:{}, physOrder:[]},
+    zones:[], inst:{map:{},order:[]}, routes:[], tables:[], legs:[],
+    cfgRouteCount:0, opRouteCount:0, supersededRoutes:0, missingStatics:[], unresolvedNh:[],
+    opSources:{routes:{},sas:{},ike:{}}, opDuplicates:{routes:0,sas:0,ike:0},
+    policies:[], defaultPolicy:"", books:{books:{},order:[]}, apps:{apps:{},sets:{}},
+    vpnCfg:{order:[]}, vpns:[], sas:[], orphanSAs:[], ikes:[], orphanIKE:[],
+    ifaceZone:{}, groups:[],
+    dynamicProtocols:[], stmtCount:0
+  };
+
+  var state = {
+    raw:"", m:EMPTY, view:"overview", filter:"", activeOnly:true, problemsOnly:false,
+    expanded:{}, openChips:{}, fileName:"", fileMode:false, built:false
+  };
+
+  function fmtDur(sec){
+    if(sec === null || sec === undefined) return "-";
+    var h = Math.floor(sec/3600), mm = Math.floor((sec%3600)/60), s = sec%60;
+    function pad(n){ return n < 10 ? "0" + n : String(n); }
+    if(h)  return h + "h " + pad(mm) + "m";
+    if(mm) return mm + "m " + pad(s) + "s";
+    return s + "s";
+  }
+
+  function q(){ return state.filter.trim().toLowerCase(); }
+  function hit(parts){
+    var t = q();
+    if(!t) return true;
+    return parts.filter(Boolean).join(" ").toLowerCase().indexOf(t) !== -1;
+  }
+  function hasProblem(notes){
+    return (notes||[]).some(function(n){ return n.level === "warn" || n.level === "bad"; });
+  }
+
+  // Live state leads: when a tunnel is down, that is what is being looked for, and
+  // it should not be below six advisories about the configuration.
+  function vpnAllNotes(c){
+    var out = [];
+    (c.ikes || []).forEach(function(k){ out = out.concat(k.notes); });
+    if(c.sa) out = out.concat(c.sa.notes);
+    return out.concat(c.liveNotes || []).concat(c.notes || []);
+  }
+
+  function legMatches(l){
+    return hit([l.prefix, l.table, l.protocol, l.nh, l.iface, l.zone, l.node, l.kind, l.src]);
+  }
+  function visibleLegs(){
+    return state.m.legs.filter(function(l){
+      if(state.activeOnly && !l.active) return false;
+      if(state.problemsOnly && !(l.unzoned || l.kind === "unresolved")) return false;
+      return legMatches(l);
+    });
+  }
+  function visibleZones(){
+    return state.m.zones.filter(function(z){
+      if(state.problemsOnly && !hasProblem(z.notes)) return false;
+      if(!q()) return true;
+      if(hit([z.name, z.node, z.desc, z.screen].concat(z.interfaces))) return true;
+      return (z.routes||[]).some(legMatches);
+    });
+  }
+  function visibleIfaces(){
+    return state.m.ifx.order.map(function(n){ return state.m.ifx.units[n]; }).filter(function(u){
+      if(state.activeOnly && (u.disabled || u.inactive)) return false;
+      if(state.problemsOnly && !(u.notConfigured || !u.zone || u.disabled)) return false;
+      return hit([u.name, u.desc, u.zone, u.instance, u.vlan]
+        .concat(u.addrs.map(function(a){ return a.addr; })).concat(u.families));
+    }).sort(function(a,b){ return a.name.localeCompare(b.name, undefined, {numeric:true}); });
+  }
+  function visiblePolicies(){
+    return state.m.policies.filter(function(p){
+      if(state.activeOnly && p.inactive) return false;
+      if(state.problemsOnly && !hasProblem(p.notes)) return false;
+      return hit([p.from, p.to, p.name, p.action, p.tunnel, p.desc]
+        .concat(p.src).concat(p.dst).concat(p.app));
+    });
+  }
+  function visibleVpns(){
+    return state.m.vpns.filter(function(c){
+      if(state.activeOnly && c.vpn.inactive) return false;
+      if(state.problemsOnly && !hasProblem(vpnAllNotes(c))) return false;
+      var g = c.gw || {};
+      var live = [];
+      (c.ikes || []).forEach(function(k){ live.push(k.peer, k.state, k.exchange, k.role, k.enc, k.auth, k.dh); });
+      if(c.sa) live.push(c.sa.status, c.sa.localGw, c.sa.remoteGw);
+      return hit([c.name, c.vpn.bind, c.vpn.gwName, c.vpn.ipsecPolicy, c.vpn.proxyLocal,
+                  c.vpn.proxyRemote, g.extIf, g.ikePolicy].concat(g.addresses || []).concat(live));
+    });
+  }
+
+  /* ============================ MESSAGES ============================ */
+
+  function showMsg(t, b){ $("msgTitle").textContent = t; $("msgBody").innerHTML = b; $("msg").classList.add("on"); }
+  function hideMsg(){ $("msg").classList.remove("on"); }
+
+  /* ============================ SUMMARY ============================ */
+
+  // The count is of findings, not of things that have one - a zone with three
+  // problems is three things to go and look at.
+  function countProblems(m){
+    var n = 0;
+    function add(notes){
+      (notes||[]).forEach(function(x){ if(x.level === "warn" || x.level === "bad") n++; });
+    }
+    m.zones.forEach(function(z){ add(z.notes); });
+    m.policies.forEach(function(p){ add(p.notes); });
+    m.vpns.forEach(function(v){ add(vpnAllNotes(v)); });
+    m.orphanSAs.forEach(function(sa){ add(sa.notes); });
+    m.orphanIKE.forEach(function(k){ add(k.notes); });
+    add(globalNotes(m));
+    return n;
+  }
+
+  function renderSummary(){
+    var m = state.m;
+    if(!state.built){ $("summary").classList.remove("on"); $("toolbar").classList.remove("on"); return; }
+    $("summary").classList.add("on");
+    $("toolbar").classList.add("on");
+
+    var probs = countProblems(m);
+    var noZone = m.ifx.order.filter(function(n){ return !m.ifx.units[n].zone; }).length;
+
+    var cells = [
+      {n:m.ifx.order.length, l:"Logical interfaces"},
+      {n:m.zones.length,     l:"Zones"},
+      {n:m.routes.length,    l:"Routes"},
+      {n:m.policies.length,  l:"Policies"},
+      {n:m.vpns.length,      l:"IPsec VPNs"},
+      {n:noZone,             l:"Interfaces with no zone", cls: noZone ? "warnv" : ""},
+      {n:probs,              l:"Findings", cls: probs ? "badv" : "okv"}
+    ];
+    $("stats").innerHTML = cells.map(function(c){
+      return '<div class="stat"><div class="n ' + (c.cls||"") + '">' + c.n +
+             '</div><div class="l eyebrow">' + esc(c.l) + '</div></div>';
+    }).join("");
+
+    var chips = ['<span class="eyebrow">Read from the paste</span>'];
+    chips.push('<span class="chip cfg">' + plural(m.stmtCount, "config statement") + '</span>');
+    if(m.opRouteCount) chips.push('<span class="chip live">show route: ' + plural(m.opRouteCount, "route") + '</span>');
+    if(m.sas.length)   chips.push('<span class="chip live">ipsec security-associations: ' + plural(m.sas.length, "SA") + '</span>');
+    if(m.ikes.length)  chips.push('<span class="chip live">ike security-associations: ' + plural(m.ikes.length, "SA") + '</span>');
+    var fromCfg = m.routes.filter(function(r){ return r.src === "config"; }).length;
+    if(fromCfg) chips.push('<span class="chip cfg">' + plural(fromCfg, "route") + ' derived from config</span>');
+    if(m.groups.length) chips.push('<span class="chip">' + plural(m.groups.length, "config group") + ' not applied</span>');
+    if(m.host) chips.push('<span class="chip">' + esc(m.host) + '</span>');
+    $("srcline").innerHTML = chips.join("");
+  }
+
+  /* ============================ OVERVIEW ============================ */
+
+  function globalNotes(m){
+    var out = [];
+    if(m.dynamicProtocols.length){
+      out.push({level:"info", text:"This box also runs " + m.dynamicProtocols.join(", ") +
+        ". Routes learned from " + (m.dynamicProtocols.length === 1 ? "it" : "them") +
+        " are not in the configuration, so the route view is incomplete unless show route output is pasted in as well."});
+    }
+    if(m.missingStatics.length){
+      out.push({level:"warn", text:plural(m.missingStatics.length, "configured static route") +
+        " " + doDoes(m.missingStatics.length) + " not appear in the pasted RIB: " +
+        m.missingStatics.slice(0,6).map(function(r){ return r.prefix; }).join(", ") +
+        (m.missingStatics.length > 6 ? ", and " + (m.missingStatics.length-6) + " more" : "") +
+        ". A static route with an unreachable next-hop is not installed."});
+    }
+    if(m.unresolvedNh.length){
+      out.push({level:"warn", text:plural(m.unresolvedNh.length, "static next-hop") +
+        " " + doDoes(m.unresolvedNh.length) + " not fall inside any configured connected subnet: " +
+        m.unresolvedNh.slice(0,6).join(", ") +
+        (m.unresolvedNh.length > 6 ? ", and " + (m.unresolvedNh.length-6) + " more" : "") +
+        ". Those routes are reported without an egress interface rather than guessed at - they resolve recursively, or through an interface this paste does not contain."});
+    }
+    var dupes = [];
+    if(m.opDuplicates.routes) dupes.push(plural(m.opDuplicates.routes, "route"));
+    if(m.opDuplicates.sas)    dupes.push(plural(m.opDuplicates.sas, "IPsec SA"));
+    if(m.opDuplicates.ike)    dupes.push(plural(m.opDuplicates.ike, "IKE SA"));
+    if(dupes.length){
+      out.push({level:"info", text:"The same capture appears more than once in the input: " +
+        dupes.join(", ") + " were repeated and have been counted once. The optional panes are " +
+        "only needed for output the configuration paste does not already contain."});
+    }
+    if(m.groups.length){
+      out.push({level:"info", text:"Statements under groups " + m.groups.join(", ") +
+        " are templates and are read but never applied here, so nothing inherited through apply-groups appears in this report."});
+    }
+    if(m.policies.length && !m.books.order.length){
+      out.push({level:"info", text:"No address book in the paste, so policy address names are shown as written and cannot be resolved to prefixes."});
+    }
+    if(m.defaultPolicy){
+      out.push({level:"info", text:"Default policy is " + m.defaultPolicy + " - traffic matching no policy in a zone pair is handled by it."});
+    }
+    if(m.policies.length && !m.zones.length){
+      out.push({level:"bad", text:"Policies were found but no security zones. The zones hierarchy is missing from this paste, so nothing can be cross-checked against it."});
+    }
+    return out;
+  }
+
+  function ovCard(title, view, rows){
+    var body = rows.filter(Boolean).map(function(r){
+      return '<div class="kv"><span class="k">' + esc(r[0]) + '</span><span class="v ' +
+             (r[2]||"") + '">' + esc(r[1] === "" || r[1] == null ? "-" : r[1]) + '</span></div>';
+    }).join("");
+    return '<div class="ov-card"' + (view ? ' data-view="' + esc(view) + '"' : '') + '>' +
+           '<span class="eyebrow">' + esc(title) + '</span>' + body + '</div>';
+  }
+
+  function renderOverview(){
+    var m = state.m, i;
+    var units = m.ifx.order.map(function(n){ return m.ifx.units[n]; });
+    var withAddr = units.filter(function(u){ return u.addrs.length; }).length;
+    var noZone   = units.filter(function(u){ return !u.zone; }).length;
+    var down     = units.filter(function(u){ return u.disabled || u.inactive; }).length;
+    var ghost    = units.filter(function(u){ return u.notConfigured; }).length;
+
+    var secZ  = m.zones.filter(function(z){ return z.kind === "security"; }).length;
+    var funcZ = m.zones.filter(function(z){ return z.kind === "functional"; }).length;
+    var emptyZ = m.zones.filter(function(z){ return !z.interfaces.length; }).length;
+    var dupeZ  = m.zones.filter(function(z){ return z.dupes.length; }).length;
+
+    var statics   = m.routes.filter(function(r){ return r.protocol === "Static"; }).length;
+    var connected = m.routes.filter(function(r){ return r.protocol === "Direct"; }).length;
+    var unzoned   = uniq(m.legs.filter(function(l){ return l.unzoned; }).map(function(l){ return l.iface; })).length;
+
+    var permit = m.policies.filter(function(p){ return p.action === "permit"; }).length;
+    var deny   = m.policies.filter(function(p){ return p.action === "deny" || p.action === "reject"; }).length;
+    var shadow = m.policies.filter(function(p){ return p.shadowedBy; }).length;
+    var pairs  = uniq(m.policies.map(function(p){ return p.from + " " + p.to; })).length;
+
+    var addrCount = 0, setCount = 0;
+    m.books.order.forEach(function(n){
+      var B = m.books.books[n];
+      for(i in B.addresses) if(B.addresses.hasOwnProperty(i)) addrCount++;
+      for(i in B.sets)      if(B.sets.hasOwnProperty(i))      setCount++;
+    });
+    var appCount = 0, appSetCount = 0;
+    for(i in m.apps.apps) if(m.apps.apps.hasOwnProperty(i)) appCount++;
+    for(i in m.apps.sets) if(m.apps.sets.hasOwnProperty(i)) appSetCount++;
+
+    var liveSA = m.sas.length;
+    var ikeDown = m.ikes.filter(function(k){ return k.status && k.status !== "up"; }).length;
+    var weakVpn = m.vpns.filter(function(c){
+      return vpnAllNotes(c).some(function(n){ return /Deprecated|Legacy|Diffie/.test(n.text); });
+    }).length;
+
+    var cards = [
+      ovCard("Device", "", [
+        ["Host name", m.host || ""],
+        ["Junos version", m.version || ""],
+        ["Statements parsed", m.stmtCount],
+        ["Routing instances", m.inst.order.length, m.inst.order.length ? "" : "zero"],
+        ["Config groups (not applied)", m.groups.length, m.groups.length ? "warnv" : "zero"]
+      ]),
+      ovCard("Interfaces", "ifaces", [
+        ["Physical ports", m.ifx.physOrder.length],
+        ["Logical units", units.length],
+        ["With an IP address", withAddr],
+        ["Bound to a zone", units.length - noZone],
+        ["In no zone", noZone, noZone ? "warnv" : "zero"],
+        ["Disabled or inactive", down, down ? "warnv" : "zero"],
+        ["Claimed by a zone, not configured", ghost, ghost ? "badv" : "zero"]
+      ]),
+      ovCard("Zones", "zones", [
+        ["Security zones", secZ],
+        ["Functional zones", funcZ],
+        ["With no interfaces", emptyZ, emptyZ ? "warnv" : "zero"],
+        ["Interface claimed by two zones", dupeZ, dupeZ ? "badv" : "zero"]
+      ]),
+      ovCard("Routing", "routes", [
+        ["Routing tables", m.tables.length],
+        ["Static routes", statics],
+        ["Connected routes", connected],
+        ["From show route", m.opRouteCount, m.opRouteCount ? "" : "zero"],
+        ["Unresolved next-hops", m.unresolvedNh.length, m.unresolvedNh.length ? "warnv" : "zero"],
+        ["Egress interfaces with no zone", unzoned, unzoned ? "badv" : "zero"]
+      ]),
+      ovCard("Policies", "policies", [
+        ["Policies", m.policies.length],
+        ["Zone pairs", pairs],
+        ["Permit", permit],
+        ["Deny or reject", deny],
+        ["Unreachable (shadowed)", shadow, shadow ? "warnv" : "zero"],
+        ["Default policy", m.defaultPolicy || ""]
+      ]),
+      ovCard("Address book and applications", "policies", [
+        ["Address books", m.books.order.length, m.books.order.length ? "" : "zero"],
+        ["Addresses", addrCount],
+        ["Address sets", setCount],
+        ["Custom applications", appCount],
+        ["Application sets", appSetCount]
+      ]),
+      ovCard("VPN", "vpn", [
+        ["IPsec VPNs", m.vpns.length],
+        ["IKE gateways", Object.keys(m.vpnCfg.gw || {}).length],
+        ["Live IPsec SAs in the paste", liveSA, liveSA ? "" : "zero"],
+        ["Live IKE SAs in the paste", m.ikes.length, m.ikes.length ? "" : "zero"],
+        ["Phase 1 not up", ikeDown, ikeDown ? "badv" : "zero"],
+        ["With deprecated crypto", weakVpn, weakVpn ? "warnv" : "zero"]
+      ])
+    ];
+
+    var notes = globalNotes(m);
+    var findings = notes.length
+      ? '<div class="card"><div class="notes" style="border-top:0">' + notes.map(noteHTML).join("") + '</div></div>'
+      : '';
+
+    $("ov").innerHTML = '<div class="ov-grid">' + cards.join("") + '</div>' + findings;
+
+    Array.prototype.forEach.call($("ov").querySelectorAll(".ov-card[data-view]"), function(el){
+      el.style.cursor = "pointer";
+      el.addEventListener("click", function(){ setView(el.getAttribute("data-view")); });
+    });
+  }
+
+  function noteHTML(n){
+    return '<div class="note ' + n.level + '"><span class="bullet">' +
+           (n.level === "info" ? "i" : "!") + '</span><span>' + esc(n.text) + '</span></div>';
+  }
+
+  /* ============================ INTERFACES ============================ */
+
+  var IF_COLS = ["Interface","Description","Address","Family","VLAN","Zone","Instance","Routes","State"];
+
+  function ifaceRows(){
+    var m = state.m, byIf = {};
+    m.legs.forEach(function(l){
+      if(!l.iface) return;
+      if(state.activeOnly && !l.active) return;
+      byIf[l.iface] = (byIf[l.iface] || 0) + 1;
+    });
+    return visibleIfaces().map(function(u){
+      var st = u.notConfigured ? "not configured"
+             : (u.inactive ? "inactive" : (u.disabled ? "disabled" : "up in config"));
+      return [ u.name, u.desc || "",
+               u.addrs.map(function(a){ return a.addr; }).join(", "),
+               u.families.join(", "), u.vlan || "",
+               u.zone || "(none)", u.instance || "", String(byIf[u.name] || 0), st ];
+    });
+  }
+
+  function renderIfaceTable(){
+    var rows = ifaceRows();
+    var head = "<thead><tr>" + IF_COLS.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead>";
+    if(!rows.length){
+      $("table").innerHTML = head + "<tbody><tr><td colspan='" + IF_COLS.length + "' class='dim'>" +
+        (state.m.ifx.order.length ? "No interfaces match the current filter." :
+         "No interfaces hierarchy in this paste.") + "</td></tr></tbody>";
+      return;
+    }
+    var body = rows.map(function(r){
+      var bad = r[8] === "not configured", off = r[8] === "disabled" || r[8] === "inactive";
+      return "<tr" + (off ? " class='inactive'" : "") + ">" + r.map(function(cell, i){
+        var col = IF_COLS[i], cls = ["nowrap"];
+        if(col === "Zone")  cls.push(cell === "(none)" ? "warnc" : "okc");
+        if(col === "State") cls.push(bad ? "badc" : (off ? "warnc" : "dim"));
+        if(col === "Routes" && cell === "0") cls.push("dim");
+        if(col === "Description") cls = ["dim"];
+        if(!cell) cls.push("dim");
+        return "<td class='" + cls.join(" ") + "'>" + esc(cell || "-") + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  /* ============================ ZONE CARDS ============================ */
+
+  var ROUTE_PREVIEW = 8;
+
+  function routeLine(l){
+    var nh = l.iface ? (l.nh ? "to " + l.nh + " via " + l.iface : "via " + l.iface)
+                     : (l.nh ? l.kind + " " + l.nh : l.kind);
+    return '<div class="r' + (l.active ? '' : ' inactive') + '">' +
+      '<span class="p">' + esc(l.prefix) + '</span>' +
+      '<span class="pr">' + esc(l.protocol) + '/' + esc(l.pref) + '</span>' +
+      '<span class="nh">' + esc(nh) + '</span>' +
+      '<span class="tb">' + esc(l.table) + '</span>' +
+    '</div>';
+  }
+
+  function renderZoneCards(){
+    var list = visibleZones();
+    if(!list.length){
+      $("cards").innerHTML = '<div class="msg on" style="border-left-color:var(--rule)"><h3>Nothing matches</h3>' +
+        '<p>Clear the filter or switch off the problem toggle to see everything.</p></div>';
+      return;
+    }
+    var m = state.m, haveRoutes = m.routes.length > 0;
+
+    $("cards").innerHTML = list.map(function(z){
+      var n = z.interfaces.length;
+      var byIf = {};
+      z.routes.forEach(function(l){ byIf[l.iface] = (byIf[l.iface] || 0) + 1; });
+
+      var legs = z.routes.filter(function(l){
+        if(state.activeOnly && !l.active) return false;
+        return legMatches(l);
+      });
+      var expanded = !!state.expanded[z.name];
+      var shown = expanded ? legs : legs.slice(0, ROUTE_PREVIEW);
+
+      var attrRows = [
+        ["Screen", z.screen],
+        ["Routing table", z.tables.join(", ")],
+        ["Policy configurable", z.policyCfg],
+        ["Host inbound services", z.services.join(", ")],
+        ["Host inbound protocols", z.protocols.join(", ")],
+        ["TCP-RST on non-SYN", z.tcpRst],
+        ["Application tracking", z.appTrack]
+      ].filter(function(r){ return r[1]; });
+
+      return '' +
+      '<div class="card">' +
+        '<div class="card-head">' +
+          '<span class="card-name">' + esc(z.name) + '</span>' +
+          (z.kind === "functional" ? '<span class="tag func">functional</span>' : '') +
+          (z.node ? '<span class="tag">' + esc(z.node) + '</span>' : '') +
+          (z.inactive ? '<span class="tag func">inactive</span>' : '') +
+          '<span class="spacer"></span>' +
+          '<span class="count' + (n ? '' : ' zero') + '">' + plural(n, "interface") + '</span>' +
+          (haveRoutes ? '<span class="count routes' + (legs.length ? '' : ' zero') + '">' +
+            plural(legs.length, "route") + '</span>' : '') +
+        '</div>' +
+        (z.desc ? '<div class="attrs" style="border-top:0;border-bottom:1px solid var(--rule-soft)">' +
+          '<span class="attr">' + esc(z.desc) + '</span></div>' : '') +
+        '<div class="ifaces">' +
+          (n ? z.interfaces.map(function(i){
+            var dupe = z.dupes.indexOf(i) !== -1 || (z.notConfigured||[]).indexOf(i) !== -1;
+            return '<span class="iface' + (dupe ? ' dupe' : '') + '">' + esc(i) +
+              (haveRoutes ? '<span class="rc">' + (byIf[i] || 0) + '</span>' : '') + '</span>';
+          }).join("") : '<span class="none">No interfaces bound</span>') +
+        '</div>' +
+        (haveRoutes ?
+          '<div class="routebox">' +
+            '<span class="eyebrow">Routes egressing this zone</span>' +
+            (shown.length
+              ? '<div class="rlist">' + shown.map(routeLine).join("") + '</div>' +
+                (legs.length > ROUTE_PREVIEW
+                  ? '<div class="more" data-zone="' + esc(z.name) + '">' +
+                    (expanded ? 'Show fewer' : 'Show all ' + legs.length) + '</div>' : '')
+              : '<span class="none">None</span>') +
+          '</div>' : '') +
+        (attrRows.length ? '<div class="attrs">' + attrRows.map(function(r){
+          return '<span class="attr">' + esc(r[0]) + ' <b>' + esc(r[1]) + '</b></span>';
+        }).join("") + '</div>' : '') +
+        ((z.notes||[]).length ? '<div class="notes">' + z.notes.map(noteHTML).join("") + '</div>' : '') +
+      '</div>';
+    }).join("");
+
+    Array.prototype.forEach.call($("cards").querySelectorAll(".more"), function(el){
+      el.addEventListener("click", function(){
+        var k = el.getAttribute("data-zone");
+        state.expanded[k] = !state.expanded[k];
+        render();
+      });
+    });
+  }
+
+  /* ============================ ROUTE TABLE ============================ */
+
+  function routeCols(){
+    var cols = ["Table","Prefix","Protocol","Pref","Next-hop","Interface","Zone","Source","Active"];
+    if(state.m.legs.some(function(l){ return !!l.node; })) cols.unshift("Node");
+    return cols;
+  }
+  function routeRow(l, cols){
+    var map = {
+      "Node": l.node || "", "Table": l.table || "", "Prefix": l.prefix || "",
+      "Protocol": l.protocol || "", "Pref": l.pref || "",
+      "Next-hop": l.nh || (l.iface ? "" : l.kind), "Interface": l.iface || "",
+      "Zone": l.zone || (l.iface ? "(unzoned)" : "-"),
+      "Source": l.src || "", "Active": l.active ? "yes" : "no"
+    };
+    return cols.map(function(c){ return map[c]; });
+  }
+
+  function renderRouteTable(){
+    var cols = routeCols(), legs = visibleLegs();
+    var head = "<thead><tr>" + cols.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead>";
+    if(!legs.length){
+      $("table").innerHTML = head + "<tbody><tr><td colspan='" + cols.length + "' class='dim'>" +
+        (state.m.routes.length ? "No routes match the current filter." :
+         "No static routes and no interface addresses in this paste, so there is nothing to route with.") +
+        "</td></tr></tbody>";
+      return;
+    }
+    var body = legs.map(function(l){
+      var r = routeRow(l, cols);
+      return "<tr" + (l.active ? "" : " class='inactive'") + ">" + r.map(function(cell, i){
+        var col = cols[i], cls = ["nowrap"];
+        if(col === "Zone"){
+          if(l.unzoned) cls.push("badc");
+          else if(!l.zone) cls.push("dim");
+          else cls.push("okc");
+        }
+        if(col === "Interface" && !cell) cls.push(l.kind === "unresolved" ? "warnc" : "dim");
+        if(col === "Source") cls.push(cell === "config" ? "dim" : "inc");
+        if(col === "Active" && cell === "no") cls.push("warnc");
+        if(col === "Node" && !cell) cls.push("dim");
+        return "<td class='" + cls.join(" ") + "'>" + esc(cell || "-") + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  /* ============================ POLICY TABLE ============================ */
+
+  var POL_COLS = ["#","From zone","To zone","Policy","Source","Destination","Application","Action"];
+
+  function chipHTML(item, path){
+    var cls = "pchip " + (item.kind === "any" ? "any" : item.kind);
+    var sub = item.sub ? ' <span class="sub">' + esc(item.sub) + '</span>' : '';
+    var base = '<span class="' + cls + '"><span class="dot"></span>' + esc(item.label) + sub + '</span>';
+    if(!item.children || !item.children.length) return base;
+    var open = !!state.openChips[path];
+    return '<div class="chip-group"><div class="chip-row">' + base +
+      '<span class="pchip toggle" data-chip="' + esc(path) + '">' + (open ? "▴" : "▾") + '</span></div>' +
+      '<div class="collapse' + (open ? ' on' : '') + '"><div class="chip-row">' +
+      item.children.map(function(c, i){ return chipHTML(c, path + ">" + i); }).join("") +
+      '</div></div></div>';
+  }
+
+  function cellHTML(items, path){
+    if(!items.length) return '<span class="pchip any"><span class="dot"></span>not set</span>';
+    return '<div class="chip-stack">' + items.map(function(it, i){ return chipHTML(it, path + "." + i); }).join("") + '</div>';
+  }
+
+  function policyItems(p){
+    var m = state.m;
+    var srcBook = bookForZone(m.books, p.from);
+    var dstBook = bookForZone(m.books, p.to);
+    var src = [], dst = [], app = [];
+    p.src.forEach(function(t){ src = src.concat(resolveAddr(t, srcBook, 0, {})); });
+    p.dst.forEach(function(t){ dst = dst.concat(resolveAddr(t, dstBook, 0, {})); });
+    p.app.forEach(function(t){ app = app.concat(resolveApp(t, m.apps, 0, {})); });
+    // With no address book in the paste there is nothing to resolve against, so a
+    // name is reported as written rather than flagged as undefined.
+    if(!m.books.order.length){
+      src = src.map(plainIfUnres); dst = dst.map(plainIfUnres);
+    }
+    return { src:src, dst:dst, app:app };
+  }
+  function plainIfUnres(it){
+    return it.kind === "unres" ? {kind:"addr", label:it.label, sub:"unresolved - no address book pasted"} : it;
+  }
+
+  function renderPolicyTable(){
+    var list = visiblePolicies();
+    var head = "<thead><tr>" + POL_COLS.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead>";
+    if(!list.length){
+      $("table").innerHTML = head + "<tbody><tr><td colspan='" + POL_COLS.length + "' class='dim'>" +
+        (state.m.policies.length ? "No policies match the current filter." :
+         "No security policies in this paste.") + "</td></tr></tbody>";
+      return;
+    }
+    var body = list.map(function(p){
+      var it = policyItems(p);
+      var idx = p.from + "/" + p.to + "/" + p.name;
+      var actCls = p.action === "permit" ? "okc" : (p.action ? "badc" : "warnc");
+      var action = (p.action || "no action") +
+        (p.tunnel ? " tunnel " + p.tunnel : "") +
+        (p.log.length ? " +log" : "") + (p.count ? " +count" : "");
+      var row = "<tr" + (p.inactive ? " class='inactive'" : "") + ">" +
+        "<td class='nowrap dim'>" + p.seq + "</td>" +
+        "<td class='nowrap'>" + esc(p.from) + "</td>" +
+        "<td class='nowrap'>" + esc(p.to) + "</td>" +
+        "<td class='nowrap'>" + esc(p.name) + (p.desc ? "<div class='sub'>" + esc(p.desc) + "</div>" : "") + "</td>" +
+        "<td>" + cellHTML(it.src, "s" + idx) + (p.srcExcluded ? "<div class='sub'>excluded</div>" : "") + "</td>" +
+        "<td>" + cellHTML(it.dst, "d" + idx) + (p.dstExcluded ? "<div class='sub'>excluded</div>" : "") + "</td>" +
+        "<td>" + cellHTML(it.app, "a" + idx) + "</td>" +
+        "<td class='nowrap " + actCls + "'>" + esc(action) + "</td>" +
+      "</tr>";
+      if(!(p.notes||[]).length) return row;
+      return row + "<tr><td colspan='" + POL_COLS.length + "' style='padding:0'>" +
+        "<div class='notes' style='border-top:0'>" + p.notes.map(noteHTML).join("") + "</div></td></tr>";
+    }).join("");
+    $("table").innerHTML = head + "<tbody>" + body + "</tbody>";
+
+    Array.prototype.forEach.call($("table").querySelectorAll(".pchip.toggle"), function(el){
+      el.addEventListener("click", function(){
+        var k = el.getAttribute("data-chip");
+        state.openChips[k] = !state.openChips[k];
+        renderPolicyTable();
+      });
+    });
+  }
+
+  /* ============================ VPN CARDS ============================ */
+
+  function algoSpan(v, isWeak){
+    if(!v) return '<span>-</span>';
+    return '<span class="' + (isWeak(v) ? "weak" : "known") + '">' + esc(v) + '</span>';
+  }
+
+  function phaseLane(label, right, props, setName){
+    var text;
+    if(setName){
+      text = '<span>proposal-set ' + esc(setName) + '</span>';
+    } else if(!props.length){
+      text = '<span style="color:var(--ink-faint)">no proposal referenced</span>';
+    } else {
+      text = props.map(function(p){
+        if(p.missing) return '<span class="weak">' + esc(p.name) + ' (undefined)</span>';
+        return algoSpan(p.enc, isWeakEnc) + ' / ' + algoSpan(p.auth, isWeakAuth) +
+               (p.dh ? ' / ' + algoSpan(p.dh, isWeakDh) : '');
+      }).join(' &nbsp;|&nbsp; ');
+    }
+    return '<div class="lane phase"><div class="lane-top">' +
+      '<span class="dir">' + esc(label) + '</span>' +
+      '<span class="spacer"></span>' +
+      '<span class="crypto">' + text + '</span>' +
+      '</div>' + (right ? '<div class="life"><span class="t">' + esc(right) + '</span></div>' : '') + '</div>';
+  }
+
+  function liveLane(d, arrow, scale, title){
+    if(!d) return '<div class="lane"><div class="lane-top"><span class="dir" style="color:var(--ink-faint)">missing</span>' +
+      '<span class="crypto">no SA in this direction</span></div></div>';
+    var pct = (d.hard === null) ? 0 : Math.max(2, Math.min(100, Math.round(d.hard / scale * 100)));
+    return '<div class="lane ' + d.dir + '"><div class="lane-top">' +
+      '<span class="dir">' + arrow + ' ' + esc(d.dir) + '</span>' +
+      '<span class="spi">' + esc(d.spi || "-") + '</span>' +
+      (isInstalled(d.state) ? '' : '<span class="crypto weak">' + esc(d.state || "state unknown") + '</span>') +
+      '<span class="spacer"></span>' +
+      '<span class="crypto">' + algoSpan(d.enc, isWeakEnc) + ' / ' + algoSpan(d.auth, isWeakAuth) +
+      (d.protocol ? ' &middot; ' + esc(d.protocol) : '') + '</span>' +
+      '</div><div class="life">' +
+      '<div class="bar" title="' + esc(title) + '"><span style="width:' + pct + '%"></span></div>' +
+      '<span class="t">hard ' + fmtDur(d.hard) + ' &middot; soft ' + fmtDur(d.soft) + '</span>' +
+      '</div></div>';
+  }
+
+  // Phase 1 has no direction, so it gets a neutral lane rather than an inbound or
+  // outbound one - the cyan/amber pair stays reserved for the two half-tunnels.
+  function ikeLane(k, scale, title){
+    var pct = (k.lifetime === null) ? 0 : Math.max(2, Math.min(100, Math.round(k.lifetime / scale * 100)));
+    var algos = (k.enc || k.auth || k.dh)
+      ? algoSpan(k.enc, isWeakEnc) + ' / ' + algoSpan(k.auth, isWeakAuth) +
+        (k.dh ? ' / ' + algoSpan(k.dh, isWeakDh) : '')
+      : '<span style="color:var(--ink-faint)">algorithms not in this output</span>';
+    return '<div class="lane phase ike ' + (k.up ? 'up' : 'down') + '"><div class="lane-top">' +
+      '<span class="dir">IKE' + (k.role ? ' ' + esc(k.role) : '') + '</span>' +
+      '<span class="spi">' + esc(k.peer || "-") + '</span>' +
+      '<span class="crypto' + (k.up ? '' : ' weak') + '">' + esc(k.state || "state unknown") + '</span>' +
+      '<span class="spacer"></span>' +
+      '<span class="crypto">' + algos + (k.exchange ? ' &middot; ' + esc(k.exchange) : '') + '</span>' +
+      '</div>' +
+      (k.lifetime === null ? '' :
+        '<div class="life"><div class="bar" title="' + esc(title) + '">' +
+        '<span style="width:' + pct + '%"></span></div>' +
+        '<span class="t">lifetime ' + fmtDur(k.lifetime) + '</span></div>') +
+      '</div>';
+  }
+
+  function selectorsHTML(sa){
+    return '<div class="selectors">' +
+      '<div class="sel"><span class="eyebrow">Local identity</span><div class="ids">' + esc(sa.localId || "-") + '</div>' +
+        (sa.localIdRaw ? '<div class="raw">' + esc(sa.localIdRaw) + '</div>' : '') + '</div>' +
+      '<div class="sel remote-sel"><span class="eyebrow">Remote identity</span><div class="ids">' + esc(sa.remoteId || "-") + '</div>' +
+        (sa.remoteIdRaw ? '<div class="raw">' + esc(sa.remoteIdRaw) + '</div>' : '') + '</div>' +
+    '</div>';
+  }
+
+  // One live block per card: phase 1 lanes first, then the two phase 2 half-tunnels,
+  // so a tunnel that is down reads top-down as far as it got.
+  function liveBody(sa, ikes, scales){
+    ikes = ikes || [];
+    if(!sa && !ikes.length) return "";
+    var first = ikes[0] || null;
+    var node     = (sa && sa.node)     || (first && first.node)  || "";
+    var localGw  = (sa && sa.localGw)  || (first && first.local) || "";
+    var remoteGw = (sa && sa.remoteGw) || (first && first.peer)  || "";
+
+    var ikeTitle = barTitle(scales.ike, "Phase 1 lifetime");
+    var saTitle  = barTitle(scales.sa,  "Hard lifetime");
+    var lanes = ikes.map(function(k){ return ikeLane(k, scales.ike.n, ikeTitle); }).join("");
+    if(sa){
+      lanes += liveLane(sa.outbound, "&rarr;", scales.sa.n, saTitle) +
+               liveLane(sa.inbound,  "&larr;", scales.sa.n, saTitle);
+    }
+
+    return '<div class="livehdr"><span class="eyebrow">Live state' +
+      (node ? ' - ' + esc(node) : '') + '</span></div>' +
+      '<div class="spine">' +
+        '<div class="gw"><span class="eyebrow">Local gateway</span><span class="ip">' + esc(localGw || "-") + '</span></div>' +
+        '<div class="lanes">' + lanes + '</div>' +
+        '<div class="gw remote"><span class="eyebrow">Remote gateway</span><span class="ip">' + esc(remoteGw || "-") + '</span></div>' +
+      '</div>' +
+      (sa ? selectorsHTML(sa) : '');
+  }
+
+  // The bar answers "how long until rekey", so the denominator that means anything
+  // is the lifetime this VPN is configured with - which is on the page, because the
+  // configuration is on the page. Only when the proposal does not spell one out does
+  // it fall back to the longest lifetime in the capture, the way the standalone SA
+  // report has to. With one SA and no configured lifetime that fallback is always a
+  // full bar; the tooltip says which of the two is in force.
+  function lifeScale(props, fallback){
+    var mx = 0;
+    (props || []).forEach(function(pr){
+      var n = parseInt(pr.life, 10);
+      if(!isNaN(n) && n > mx) mx = n;
+    });
+    return mx ? { n:mx, cfg:true } : { n:fallback, cfg:false };
+  }
+  function barTitle(scale, what){
+    return what + " remaining, " + (scale.cfg
+      ? "against the " + fmtDur(scale.n) + " this VPN is configured to rekey at"
+      : "scaled to the longest lifetime in this capture");
+  }
+
+  function maxHardLifetime(){
+    var mx = 0;
+    state.m.sas.forEach(function(sa){
+      sa.directions.forEach(function(d){ if(d.hard !== null && d.hard > mx) mx = d.hard; });
+    });
+    return mx || 3600;
+  }
+  function maxIkeLifetime(){
+    var mx = 0;
+    state.m.ikes.forEach(function(k){ if(k.lifetime !== null && k.lifetime > mx) mx = k.lifetime; });
+    return mx || 3600;
+  }
+
+  function renderVpnCards(){
+    var m = state.m, list = visibleVpns();
+    var maxHard = maxHardLifetime(), maxLife = maxIkeLifetime();
+    var orphans = m.orphanSAs.filter(function(sa){
+      if(state.problemsOnly && !hasProblem(sa.notes)) return false;
+      return hit([sa.name, sa.bind, sa.localGw, sa.remoteGw, sa.localId, sa.remoteId]);
+    });
+    var strayIke = m.orphanIKE.filter(function(k){
+      if(state.problemsOnly && !hasProblem(k.notes)) return false;
+      return hit([k.peer, k.gwName, k.state, k.exchange, k.local, k.role]);
+    });
+
+    if(!list.length && !orphans.length && !strayIke.length){
+      $("cards").innerHTML = '<div class="msg on" style="border-left-color:var(--rule)"><h3>' +
+        (m.vpns.length || m.sas.length || m.ikes.length ? 'Nothing matches' : 'No IPsec configuration') + '</h3><p>' +
+        (m.vpns.length || m.sas.length || m.ikes.length
+          ? 'Clear the filter or switch off the problem toggle to see everything.'
+          : 'Nothing was found under <code>security ipsec</code> or <code>security ike</code>, and no ' +
+            '<code>show security ipsec security-associations detail</code> output was pasted in.') +
+        '</p></div>';
+      return;
+    }
+
+    var cfgCards = list.map(function(c){
+      var W = c.vpn, G = c.gw || {}, K = c.ikePol, P = c.ipsPol;
+      var ikeUp = c.ikes.length ? c.ikes.some(function(k){ return k.up; }) : null;
+      var stateCls = "idle", stateTxt = "config";
+      if(c.sa){
+        var map = {up:["up","up"], partial:["part","half"], backup:["idle","backup"], down:["down","down"]};
+        var st = map[c.sa.status] || map.down;
+        stateCls = st[0]; stateTxt = st[1];
+      } else if(ikeUp !== null){
+        // Phase 1 only: say so rather than implying the tunnel is passing traffic.
+        stateCls = ikeUp ? "part" : "down";
+        stateTxt = ikeUp ? "ike only" : "ike down";
+      }
+      var tsRows = W.tsOrder.map(function(n){
+        var t = W.ts[n];
+        return '<span class="attr">' + esc(n) + ' <b>' + esc(t.local || "-") + ' to ' + esc(t.remote || "-") + '</b></span>';
+      }).join("");
+
+      var attrRows = [
+        ["IKE gateway", W.gwName],
+        ["External interface", G.extIf],
+        ["IKE version", G.version],
+        ["IKE mode", K ? K.mode : ""],
+        ["IKE policy", G.ikePolicy],
+        ["IPsec policy", W.ipsecPolicy],
+        ["PFS", P ? P.pfs : ""],
+        ["Dead peer detection", G.dpd],
+        ["Establish tunnels", W.establish],
+        ["VPN monitor", W.monitor ? (W.monitorOpts.join(", ") || "on") : ""],
+        ["Local identity", G.localId],
+        ["Remote identity", G.remoteId]
+      ].filter(function(r){ return r[1]; });
+
+      return '<div class="card">' +
+        '<div class="card-head">' +
+          '<span class="card-name">' + esc(c.name) + '</span>' +
+          (W.bind ? '<span class="tag st0">' + esc(W.bind) + '</span>' : '<span class="tag">policy-based</span>') +
+          (m.ifaceZone[W.bind] ? '<span class="tag">zone ' + esc(m.ifaceZone[W.bind]) + '</span>' : '') +
+          (W.inactive ? '<span class="tag func">inactive</span>' : '') +
+          (c.sa && ikeUp !== null ? '<span class="tag ike ' + (ikeUp ? 'up' : 'down') + '">ike ' +
+            (ikeUp ? 'up' : 'down') + '</span>' : '') +
+          '<span class="spacer"></span>' +
+          '<span class="state ' + stateCls + '">' + stateTxt + '</span>' +
+        '</div>' +
+        '<div class="spine">' +
+          '<div class="gw"><span class="eyebrow">Local</span><span class="ip">' +
+            esc(G.localAddr || G.extIf || "-") + '</span></div>' +
+          '<div class="lanes">' +
+            phaseLane("IKE / phase 1", K && K.proposals.length ? K.proposals.join(", ") : "", c.ikeProps, K ? K.proposalSet : "") +
+            phaseLane("IPsec / phase 2", P && P.proposals.length ? P.proposals.join(", ") : "", c.ipsProps, P ? P.proposalSet : "") +
+          '</div>' +
+          '<div class="gw remote"><span class="eyebrow">Peer</span><span class="ip">' +
+            esc((G.addresses || []).join(", ") || G.dynamic || "-") + '</span></div>' +
+        '</div>' +
+        ((W.proxyLocal || W.proxyRemote) ?
+          '<div class="selectors">' +
+            '<div class="sel"><span class="eyebrow">Proxy identity local</span><div class="ids">' + esc(W.proxyLocal || "-") + '</div></div>' +
+            '<div class="sel remote-sel"><span class="eyebrow">Proxy identity remote</span><div class="ids">' + esc(W.proxyRemote || "-") + '</div></div>' +
+          '</div>' : '') +
+        (tsRows ? '<div class="attrs"><span class="attr" style="width:100%"><span class="eyebrow">Traffic selectors</span></span>' + tsRows + '</div>' : '') +
+        (attrRows.length ? '<div class="attrs">' + attrRows.map(function(r){
+          return '<span class="attr">' + esc(r[0]) + ' <b>' + esc(r[1]) + '</b></span>';
+        }).join("") + '</div>' : '') +
+        liveBody(c.sa, c.ikes, {
+          sa:  lifeScale(c.ipsProps, maxHard),
+          ike: lifeScale(c.ikeProps, maxLife)
+        }) +
+        (function(){
+          var all = vpnAllNotes(c);
+          return all.length ? '<div class="notes">' + all.map(noteHTML).join("") + '</div>' : '';
+        })() +
+      '</div>';
+    }).join("");
+
+    var orphanCards = orphans.map(function(sa){
+      var map = {up:["up","up"], partial:["part","half"], backup:["idle","backup"], down:["down","down"]};
+      var s = map[sa.status] || map.down;
+      return '<div class="card">' +
+        '<div class="card-head">' +
+          '<span class="card-name">' + esc(sa.name) + '</span>' +
+          (sa.bind ? '<span class="tag st0">' + esc(sa.bind) + '</span>' : '') +
+          (sa.node ? '<span class="tag">' + esc(sa.node) + '</span>' : '') +
+          '<span class="tag">live only</span>' +
+          '<span class="spacer"></span>' +
+          '<span class="state ' + s[0] + '">' + s[1] + '</span>' +
+        '</div>' +
+        liveBody(sa, [], { sa:{n:maxHard, cfg:false}, ike:{n:maxLife, cfg:false} }) +
+        '<div class="notes">' +
+          noteHTML({level:"info", text:"This SA is on the box but no matching security ipsec vpn was found in the configuration paste."}) +
+          sa.notes.map(noteHTML).join("") +
+        '</div>' +
+      '</div>';
+    }).join("");
+
+    // An IKE SA that matches no configured gateway still has to be shown - it is
+    // often the one that explains why a tunnel the config describes is not up.
+    var ikeCards = strayIke.map(function(k){
+      return '<div class="card">' +
+        '<div class="card-head">' +
+          '<span class="card-name">' + esc(k.gwName || k.peer || "(unnamed IKE peer)") + '</span>' +
+          (k.node ? '<span class="tag">' + esc(k.node) + '</span>' : '') +
+          '<span class="tag">phase 1 only</span>' +
+          '<span class="spacer"></span>' +
+          '<span class="state ' + (k.up ? 'part' : 'down') + '">' + (k.up ? 'ike only' : 'ike down') + '</span>' +
+        '</div>' +
+        liveBody(null, [k], { sa:{n:maxHard, cfg:false}, ike:{n:maxLife, cfg:false} }) +
+        '<div class="notes">' +
+          noteHTML({level:"info", text: k.gwName
+            ? "No security ike gateway named " + k.gwName + " was found in the configuration paste."
+            : "This IKE SA matches no gateway in the configuration paste, by name or by peer address."}) +
+          k.notes.map(noteHTML).join("") +
+        '</div>' +
+      '</div>';
+    }).join("");
+
+    $("cards").innerHTML = cfgCards + orphanCards + ikeCards;
+  }
+
+  /* ============================ DIAGRAM ============================ */
+
+  // Palette resolved to literal hex so a downloaded .svg is self-contained
+  // (var(--x) does not resolve outside this document). Keep in sync with :root.
+  var COL = {
+    panel:"#1b242d", panel2:"#212d38", ground:"#131a21",
+    rule:"#2c3945", ink:"#dfe7ec", inkDim:"#8296a5", inkFaint:"#5e7182",
+    in:"#4fc3d9", out:"#e0a253", alert:"#e0645f", ok:"#6fb98a"
+  };
+  var CHW = 6.6;
+  var DGM_ROUTE_CAP = 7;
+
+  function containerColor(it){
+    if(it.unzoned || it.danger) return COL.alert;
+    if(it.kind === "functional") return COL.out;
+    return COL.inkFaint;
+  }
+
+  // Connectors are coloured by interface type, not by zone. The Junos prefix
+  // tells us the link's nature: a secure-tunnel st0 reads differently from a
+  // redundant-ethernet bond or a plain physical port.
+  function linkClass(ifn){
+    var n = String(ifn||"").toLowerCase();
+    if(/^(st|gr|ip|lt|mt|vt)/.test(n))          return { t:"tunnel",    c:COL.out };
+    if(/^(reth|ae)/.test(n))                    return { t:"reth / ae", c:COL.ok };
+    if(/^(ge|xe|et|fe|em|mge|xle|ce)/.test(n))  return { t:"ethernet",  c:COL.in };
+    if(/^(fxp|me|vme)/.test(n))                 return { t:"mgmt",      c:COL.inkDim };
+    return { t:"other", c:COL.inkFaint };
+  }
+  function clip(s, n){
+    s = String(s==null?"":s);
+    return s.length > n ? s.slice(0, n-1) + "…" : s;
+  }
+
+  function ifaceBoxesFor(interfaces, routes){
+    var byIf = {};
+    (routes||[]).forEach(function(l){
+      if(state.activeOnly && !l.active) return;
+      if(!l.iface) return;
+      if(!byIf[l.iface]) byIf[l.iface] = { seen:{}, list:[] };
+      var k = l.prefix + "|" + l.iface;
+      if(byIf[l.iface].seen[k]) return;
+      byIf[l.iface].seen[k] = 1;
+      byIf[l.iface].list.push(l);
+    });
+    return interfaces.map(function(ifn){
+      return { name:ifn, routes: byIf[ifn] ? byIf[ifn].list : [] };
+    });
+  }
+
+  function diagramItems(){
+    var m = state.m;
+    var items = visibleZones().map(function(z){
+      return {
+        name:z.name, kind:z.kind, node:z.node,
+        ifaces: ifaceBoxesFor(z.interfaces, z.routes),
+        empty: z.interfaces.length === 0,
+        danger: z.dupes.length > 0 || (z.notConfigured||[]).length > 0,
+        unzoned:false
+      };
+    });
+
+    var zi = {};
+    m.zones.forEach(function(z){ z.interfaces.forEach(function(i){ zi[i] = 1; }); });
+    var unmap = {}, order = [];
+    m.legs.forEach(function(l){
+      if(!l.iface || zi[l.iface]) return;
+      if(state.activeOnly && !l.active) return;
+      if(!unmap[l.iface]){ unmap[l.iface] = {list:[], seen:{}}; order.push(l.iface); }
+      var k = l.prefix + "|" + l.iface;
+      if(unmap[l.iface].seen[k]) return;
+      unmap[l.iface].seen[k] = 1;
+      unmap[l.iface].list.push(l);
+    });
+    if(order.length){
+      items.push({ name:"Unzoned egress", kind:"unzoned", node:"",
+        ifaces: order.map(function(i){ return { name:i, routes:unmap[i].list }; }),
+        empty:false, danger:true, unzoned:true });
+    }
+    return items;
+  }
+
+  function svgRect(x,y,w,h,fill,stroke,r,dash){
+    return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+r+'" fill="'+fill+'" stroke="'+stroke+
+      '" stroke-width="1.4"'+(dash?' stroke-dasharray="5 4"':'')+'/>';
+  }
+  function svgText(x,y,size,fill,str,weight){
+    return '<text x="'+x+'" y="'+y+'" font-size="'+size+'" fill="'+fill+'"'+
+      (weight?' font-weight="'+weight+'"':'')+'>'+esc(str)+'</text>';
+  }
+
+  function renderDiagram(){
+    var host = $("diagram"), items = diagramItems(), m = state.m;
+    if(!items.length){
+      host.innerHTML = '<div class="none">No zones to diagram. Build the report first.</div>';
+      $("dgmCaption").textContent = "";
+      return;
+    }
+
+    var P = 28, deviceW = 150, colGap = 190, zoneW = 380, zoneGap = 22;
+    var zonePad = 12, zoneHeaderH = 34, ifaceGap = 10;
+    var zoneX = P + deviceW + colGap;
+    var ifaceBoxX = zoneX + zonePad;
+    var ifaceBoxW = zoneW - 2 * zonePad;
+    var ifTextX = ifaceBoxX + 12;
+    var haveRoutes = m.routes.length > 0;
+
+    var y = P;
+    items.forEach(function(it){
+      it.boxes = (it.ifaces || []).map(function(f){
+        var cap = Math.min(f.routes.length, DGM_ROUTE_CAP);
+        var more = f.routes.length - cap;
+        var bodyH;
+        if(!haveRoutes)          bodyH = 0;
+        else if(f.routes.length) bodyH = cap * 17 + (more > 0 ? 15 : 0);
+        else                     bodyH = 15;
+        return { name:f.name, routes:f.routes, cap:cap, more:more,
+                 h: 8 + 18 + (bodyH ? 6 + bodyH : 0) + 8, bodyH:bodyH };
+      });
+      var cursor = y + zoneHeaderH;
+      it.boxes.forEach(function(b){ b.top = cursor; cursor += b.h + ifaceGap; });
+      it.top = y;
+      it.contentBottom = it.boxes.length ? (cursor - ifaceGap) : (y + zoneHeaderH + 18);
+      it.h = (it.contentBottom + zonePad) - y;
+      y += it.h + zoneGap;
+    });
+    var contentBottom = y - zoneGap;
+    var totalH = contentBottom + P;
+    var svgW = zoneX + zoneW + P;
+    var devTop = P, devH = contentBottom - devTop, devRight = P + deviceW;
+
+    var ports = [];
+    items.forEach(function(it){
+      it.boxes.forEach(function(b){ ports.push({ iface:b.name, y:b.top + b.h/2 }); });
+    });
+
+    var s = [];
+    s.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+totalH+
+      '" viewBox="0 0 '+svgW+' '+totalH+'">');
+
+    s.push(svgRect(P, devTop, deviceW, devH, COL.panel2, COL.rule, 8));
+    s.push(svgText(P+14, devTop+24, 13, COL.ink, clip(m.host || "Device", 16), 600));
+    s.push(svgText(P+14, devTop+42, 10.5, COL.inkFaint, m.version ? clip(m.version, 18) : "Junos / generic"));
+    s.push(svgText(P+14, contentBottom-14, 10.5, COL.inkFaint, plural(ports.length, "interface")));
+
+    // Zone cards first, then wires, then interface boxes, so each wire visibly
+    // meets the box it feeds.
+    items.forEach(function(it){
+      var cc = containerColor(it), tx = zoneX + 18;
+      s.push('<rect x="'+zoneX+'" y="'+it.top+'" width="'+zoneW+'" height="'+it.h+
+        '" rx="9" fill="'+COL.panel2+'" stroke="'+cc+'" stroke-width="2"'+
+        (it.empty ? ' stroke-dasharray="6 4"' : '')+'/>');
+      s.push('<path d="M'+(zoneX+14)+' '+(it.top+zoneHeaderH-6)+' H '+(zoneX+zoneW-12)+
+        '" stroke="'+cc+'" stroke-width="1" opacity="0.4"/>');
+      s.push(svgText(tx, it.top+23, 14.5, COL.ink, it.name, 700));
+      var tag = it.unzoned ? "unzoned" : (it.kind==="functional" ? "functional" : (it.node||""));
+      if(tag) s.push(svgText(tx + it.name.length*8.2 + 12, it.top+23, 10.5,
+        (it.kind==="functional"||it.unzoned) ? cc : COL.inkDim, tag));
+      if(!it.boxes.length){
+        s.push(svgText(tx, it.top+zoneHeaderH+14, 10.5, COL.out, "No interfaces bound"));
+      }
+    });
+
+    ports.forEach(function(p){
+      var col = linkClass(p.iface).c, x1 = devRight, x2 = ifaceBoxX, mx = (x1+x2)/2;
+      s.push('<path d="M'+x1+' '+p.y+' C '+mx+' '+p.y+' '+mx+' '+p.y+' '+x2+' '+p.y+
+        '" fill="none" stroke="'+col+'" stroke-width="1.6" opacity="0.9"/>');
+      s.push(svgText(devRight+8, p.y-4, 10.5, col, p.iface));
+      s.push('<circle cx="'+devRight+'" cy="'+p.y+'" r="3" fill="'+col+'"/>');
+    });
+
+    items.forEach(function(it){
+      it.boxes.forEach(function(b){
+        var lc = linkClass(b.name).c;
+        s.push(svgRect(ifaceBoxX, b.top, ifaceBoxW, b.h, COL.ground, lc, 6));
+        s.push('<rect x="'+ifaceBoxX+'" y="'+b.top+'" width="3" height="'+b.h+'" rx="1.5" fill="'+lc+'"/>');
+        s.push(svgText(ifTextX, b.top+17, 11.5, lc, b.name, 600));
+        if(!haveRoutes) return;
+
+        var ry = b.top + 34;
+        if(b.routes.length){
+          for(var i=0;i<b.cap;i++){
+            var l = b.routes[i], pfx = clip(l.prefix, 30);
+            s.push(svgText(ifTextX, ry + i*17, 11, COL.ink, pfx));
+            var suf = l.nh ? ("→ " + l.nh) : (l.iface ? "" : (l.kind || ""));
+            if(suf) s.push(svgText(ifTextX + pfx.length*CHW + 10, ry + i*17, 10.5, COL.inkFaint, suf));
+          }
+          if(b.more > 0) s.push(svgText(ifTextX, ry + b.cap*17, 10.5, COL.inkFaint, "+ "+b.more+" more"));
+        } else {
+          s.push(svgText(ifTextX, ry, 10.5, COL.out, "no routes egress here"));
+        }
+      });
+    });
+
+    s.push('</svg>');
+    host.innerHTML = s.join("");
+
+    var zc = items.filter(function(it){ return !it.unzoned; }).length;
+    var cap = (m.host || "Generic device") + "  •  " + plural(zc, "zone") +
+      "  •  " + plural(ports.length, "interface") + " bound";
+    if(haveRoutes) cap += "  •  " + plural(m.routes.length, "route");
+    $("dgmCaption").textContent = cap;
+  }
+
+  /* ============================ RENDER DISPATCH ============================ */
+
+  function render(){
+    renderSummary();
+    var v = state.view;
+    var cardView  = (v === "zones" || v === "vpn");
+    var tableView = (v === "ifaces" || v === "routes" || v === "policies");
+
+    $("ov").classList.toggle("on", v === "overview");
+    $("cards").classList.toggle("hidden", !cardView);
+    $("tableWrap").classList.toggle("on", tableView);
+    $("diagramWrap").classList.toggle("on", v === "diagram");
+
+    if(v === "overview")      renderOverview();
+    else if(v === "ifaces")   renderIfaceTable();
+    else if(v === "zones")    renderZoneCards();
+    else if(v === "routes")   renderRouteTable();
+    else if(v === "diagram")  renderDiagram();
+    else if(v === "policies") renderPolicyTable();
+    else if(v === "vpn")      renderVpnCards();
+  }
+
+  function setView(v){
+    state.view = v;
+    var ids = { overview:"viewOverview", ifaces:"viewIfaces", zones:"viewZones", routes:"viewRoutes",
+                diagram:"viewDiagram", policies:"viewPolicies", vpn:"viewVpn" };
+    for(var k in ids){
+      if(ids.hasOwnProperty(k)) $(ids[k]).setAttribute("aria-pressed", String(k === v));
+    }
+    render();
+  }
+
+  /* ============================ EXPORT ============================ */
+
+  function itemText(items){
+    return items.map(function(it){
+      var s = it.label + (it.sub ? " (" + it.sub + ")" : "");
+      if(it.children && it.children.length) s += " [" + itemText(it.children) + "]";
+      return s;
+    }).join(", ");
+  }
+
+  var VPN_COLS = ["VPN","Bind interface","Zone","IKE gateway","Peer","External interface","IKE version",
+                  "IKE mode","IKE proposals","IPsec policy","PFS","IPsec proposals",
+                  "Proxy local","Proxy remote","IPsec SA","IKE state","IKE exchange","IKE algorithms"];
+
+  function exportCols(){
+    if(state.view === "ifaces")   return IF_COLS;
+    if(state.view === "policies") return POL_COLS;
+    if(state.view === "vpn")      return VPN_COLS;
+    return routeCols();
+  }
+
+  function exportRows(){
+    if(state.view === "ifaces") return ifaceRows();
+    if(state.view === "policies"){
+      return visiblePolicies().map(function(p){
+        var it = policyItems(p);
+        return [ String(p.seq), p.from, p.to, p.name,
+                 itemText(it.src) || "not set", itemText(it.dst) || "not set",
+                 itemText(it.app) || "not set",
+                 (p.action || "no action") + (p.tunnel ? " tunnel " + p.tunnel : "") +
+                 (p.log.length ? " +log" : "") + (p.count ? " +count" : "") +
+                 (p.inactive ? " (inactive)" : "") ];
+      });
+    }
+    if(state.view === "vpn"){
+      return visibleVpns().map(function(c){
+        var W = c.vpn, G = c.gw || {}, K = c.ikePol, P = c.ipsPol;
+        return [ c.name, W.bind || "", state.m.ifaceZone[W.bind] || "", W.gwName || "",
+                 (G.addresses||[]).join(" ") || G.dynamic || "", G.extIf || "", G.version || "",
+                 K ? K.mode : "", algoText(c.ikeProps, K ? K.proposalSet : ""),
+                 W.ipsecPolicy || "", P ? P.pfs : "", algoText(c.ipsProps, P ? P.proposalSet : ""),
+                 W.proxyLocal || "", W.proxyRemote || "",
+                 c.sa ? c.sa.status : "not in this paste",
+                 c.ikes.length ? c.ikes.map(function(k){ return k.state || k.status; }).join(" ") : "not in this paste",
+                 c.ikes.map(function(k){ return k.exchange; }).filter(Boolean).join(" "),
+                 c.ikes.map(function(k){ return [k.enc, k.auth, k.dh].filter(Boolean).join("/"); }).filter(Boolean).join(" ") ];
+      });
+    }
+    var cols = routeCols();
+    if(state.view === "routes") return visibleLegs().map(function(l){ return routeRow(l, cols); });
+    // Overview, zones and diagram all export the route-to-zone join, which is the
+    // question those views exist to answer.
+    return state.m.legs.filter(function(l){
+      if(state.activeOnly && !l.active) return false;
+      return legMatches(l);
+    }).map(function(l){ return routeRow(l, cols); });
+  }
+
+  // The host-name lands in a download filename, so keep it to safe characters.
+  function hostSlug(){
+    var h = String(state.m.host || "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+    return h ? h + "-" : "";
+  }
+  function exportName(){
+    var base = { ifaces:"interfaces", policies:"security-policies", vpn:"ipsec-vpns" }[state.view] || "routes-by-zone";
+    return hostSlug() + base;
+  }
+
+  function toCSV(){
+    var qt = function(v){ return '"' + String(v==null?"":v).replace(/"/g,'""') + '"'; };
+    return [exportCols().map(qt).join(",")]
+      .concat(exportRows().map(function(r){ return r.map(qt).join(","); })).join("\n");
+  }
+  function toMarkdown(){
+    var cols = exportCols();
+    return ["| " + cols.join(" | ") + " |", "|" + cols.map(function(){ return "---"; }).join("|") + "|"]
+      .concat(exportRows().map(function(r){
+        return "| " + r.map(function(c){ return String(c || "-").replace(/\|/g,"\\|"); }).join(" | ") + " |";
+      })).join("\n");
+  }
+
+  // URL.createObjectURL is not implemented in jsdom, hence the data-URI fallback.
+  function download(name, content, type){
+    var url, revoke = false;
+    if(typeof URL !== "undefined" && URL.createObjectURL){
+      url = URL.createObjectURL(new Blob([content], {type:type})); revoke = true;
+    } else {
+      url = "data:" + type + ";charset=utf-8," + encodeURIComponent(content);
+    }
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    if(revoke) setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function flash(btn, label){
+    var old = btn.textContent;
+    btn.textContent = label;
+    setTimeout(function(){ btn.textContent = old; }, 1400);
+  }
+  function fallbackCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); }catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  /* ============================ FAILURE MESSAGES ============================ */
+
+  function nothingReport(text, m){
+    var lines = String(text||"").replace(/\r\n?/g,"\n").split("\n").filter(function(l){ return l.trim(); });
+    if(!lines.length){
+      return "The box above is empty. Paste a configuration, drop a file onto it, or press " +
+             "<b>Open file</b>. Nothing is uploaded either way.";
+    }
+    if(!m.flat.length){
+      return "Read " + plural(lines.length, "non-blank line") + " and found no Junos statement in either form." +
+        "<br><br>In brace form, statements end in <code>;</code> inside <code>{ }</code> blocks. In set form, " +
+        "every line starts with <code>set</code>. Neither turned up here." +
+        "<br><br><b>First line seen:</b> <code>" + esc(lines[0].slice(0,140)) + "</code>";
+    }
+    var tops = uniq(m.flat.map(function(r){ return String(r.p[0]); })).slice(0, 18);
+    var extra = "";
+    if(tops.indexOf("from-zone") !== -1 || tops.indexOf("policy") !== -1){
+      extra = "<br><br>Those top-level names are the <em>inside</em> of <code>security policies</code>. This looks " +
+        "like <code>show configuration security policies</code>, which prints the subtree without the path that " +
+        "leads to it. Re-run it as <code>show configuration security policies | display set</code>, which prints " +
+        "the full path on every line, or paste the configuration from the top.";
+    } else if(tops.indexOf("security-zone") !== -1 || tops.indexOf("zones") !== -1){
+      extra = "<br><br>Those top-level names are the <em>inside</em> of <code>security zones</code>. Re-run the " +
+        "command with <code>| display set</code> so every line carries its full path, or paste from the top of " +
+        "the configuration.";
+    }
+    return "Parsed " + plural(m.flat.length, "statement") + ", but none of them sit under a hierarchy this report reads." +
+      "<br><br><b>Top-level hierarchies seen:</b> <code>" + tops.map(esc).join("</code> <code>") + "</code>" +
+      "<br><br>This report reads <code>interfaces</code>, <code>security zones</code>, <code>security policies</code>, " +
+      "<code>security address-book</code>, <code>security ike</code>, <code>security ipsec</code>, " +
+      "<code>applications</code>, <code>routing-options</code> and <code>routing-instances</code>." + extra;
+  }
+
+  /* ============================ WIRING ============================ */
+
+  function currentText(){ return state.fileMode ? state.raw : $("raw").value; }
+  function extraText(){
+    return { routes:$("rawRoutes").value, sas:$("rawSAs").value, ike:$("rawIKE").value };
+  }
+
+  function setOpt(on){
+    $("opt").classList.toggle("on", !!on);
+    $("optToggle").setAttribute("aria-expanded", String(!!on));
+    $("optTwisty").innerHTML = on ? "&#9662;" : "&#9656;";
+  }
+
+  function opCount(m, kind, srcKey){ return (m.opSources[kind] || {})[srcKey] || 0; }
+
+  // Each pane reports what that pane alone yielded. When a pane is empty but the
+  // configuration paste already carries that capture - a session capture or an RSI
+  // holds all of it - the pane says so instead of sitting there marked "optional"
+  // beside a report plainly full of routes.
+  function setPaneState(id, paneText, m, kind, srcKey, unit){
+    var el = $(id), own = opCount(m, kind, srcKey), inCfg = opCount(m, kind, "config");
+    if(paneText && paneText.trim()){
+      el.textContent = own ? plural(own, unit) : "nothing recognised";
+      el.className = "state" + (own ? " ok" : "");
+      return;
+    }
+    if(inCfg){
+      el.textContent = plural(inCfg, unit) + " already in the configuration";
+      el.className = "state found";
+      return;
+    }
+    el.textContent = "optional";
+    el.className = "state";
+  }
+
+  function updatePaneStates(m, extra){
+    setPaneState("routeState", extra.routes, m, "routes", "routePane", "route");
+    setPaneState("saState",    extra.sas,    m, "sas",    "saPane",    "SA");
+    setPaneState("ikeState",   extra.ike,    m, "ike",    "ikePane",   "SA");
+
+    var bits = [];
+    if(m.opRouteCount) bits.push(plural(m.opRouteCount, "route"));
+    if(m.sas.length)   bits.push(plural(m.sas.length, "IPsec SA"));
+    if(m.ikes.length)  bits.push(plural(m.ikes.length, "IKE SA"));
+
+    // Say where it came from, so the header is useful without expanding the section.
+    var fromPanes = opCount(m,"routes","routePane") + opCount(m,"sas","saPane") + opCount(m,"ike","ikePane");
+    var fromCfg   = opCount(m,"routes","config")   + opCount(m,"sas","config")  + opCount(m,"ike","config");
+    var where = "";
+    if(bits.length && !fromPanes && fromCfg) where = " \u2014 already in the configuration paste";
+    else if(bits.length && fromPanes && fromCfg) where = " \u2014 from the panes and the configuration paste";
+    $("optState").textContent = bits.length ? bits.join(" \u00b7 ") + where : "";
+  }
+
+  function doParse(){
+    var text = currentText(), extra = extraText();
+    var m = parseConfig(text, extra);
+    state.m = m;
+    state.expanded = {};
+    state.openChips = {};
+
+    var found = m.ifx.order.length + m.zones.length + m.routes.length +
+                m.policies.length + m.vpns.length + m.sas.length + m.ikes.length;
+    state.built = found > 0;
+    updatePaneStates(m, extra);
+
+    var bits = [];
+    if(m.ifx.order.length) bits.push(plural(m.ifx.order.length, "interface"));
+    if(m.zones.length)     bits.push(plural(m.zones.length, "zone"));
+    if(m.policies.length)  bits.push(plural(m.policies.length, "policy", "policies"));
+    if(m.vpns.length)      bits.push(plural(m.vpns.length, "VPN"));
+    $("inputState").textContent = bits.length ? bits.join(", ") : "not parsed";
+    $("inputState").className = "state" + (bits.length ? " ok" : "");
+
+    if(!state.built){
+      $("summary").classList.remove("on");
+      $("toolbar").classList.remove("on");
+      $("ov").innerHTML = ""; $("cards").innerHTML = ""; $("table").innerHTML = "";
+      $("ov").classList.remove("on");
+      $("cards").classList.add("hidden");
+      $("tableWrap").classList.remove("on");
+      $("diagramWrap").classList.remove("on");
+      var anyInput = (text + extra.routes + extra.sas + extra.ike).trim();
+      showMsg(anyInput ? "Nothing recognised" : "Nothing to parse", nothingReport(text, m));
+      return;
+    }
+
+    hideMsg();
+    $("pane").classList.add("stowed");
+    render();
+  }
+
+  var BIG = 4000000;
+
+  function readFile(f, target){
+    if(!f) return;
+    target = target || "raw";
+    var fr = new FileReader();
+    fr.onload = function(){
+      var t = String(fr.result == null ? "" : fr.result);
+
+      // The optional panes hold one command's output, which is never big enough
+      // to need the windowed read the configuration box does.
+      if(target !== "raw"){
+        if(t.length > BIG){
+          showMsg("That file is too large for this pane",
+            "<code>" + esc(f.name) + "</code> is " + t.length + " characters. Drop it on the " +
+            "configuration box instead - that one reads a file of any size.");
+          return;
+        }
+        $(target).value = t;
+        setOpt(true);
+        doParse();
+        return;
+      }
+
+      state.fileName = f.name;
+      state.raw = t;
+      if(t.length <= BIG){
+        state.fileMode = false;
+        $("raw").removeAttribute("readonly");
+        $("raw").value = t;
+      } else {
+        state.fileMode = true;
+        $("raw").setAttribute("readonly", "readonly");
+        $("raw").value = t.slice(0, 40000) +
+          "\n\n[showing the first 40,000 characters of " + f.name + "; the whole file is parsed]";
+      }
+      $("fileNote").classList.remove("hidden");
+      $("fileNote").textContent = f.name + " — " + t.length + " characters, read in this page." +
+        (state.fileMode ? " Too large to edit here; press Clear to paste instead." : "");
+      doParse();
+    };
+    fr.onerror = function(){
+      showMsg("Could not read that file",
+        "The browser refused to read <code>" + esc(f.name) + "</code>. Nothing was sent anywhere.");
+    };
+    fr.readAsText(f);
+  }
+
+  function clearAll(){
+    state.raw = ""; state.fileMode = false; state.fileName = "";
+    state.m = EMPTY; state.built = false;
+    state.filter = ""; state.expanded = {}; state.openChips = {};
+    $("raw").removeAttribute("readonly");
+    $("raw").value = "";
+    ["rawRoutes","rawSAs","rawIKE"].forEach(function(id){ $(id).value = ""; });
+    ["routeState","saState","ikeState"].forEach(function(id){
+      $(id).textContent = "optional"; $(id).className = "state";
+    });
+    $("optState").textContent = "";
+    setOpt(false);
+    $("fileInput").value = "";
+    $("fileNote").classList.add("hidden");
+    $("fileNote").textContent = "";
+    $("filter").value = "";
+    $("pane").classList.remove("stowed");
+    $("ov").innerHTML = ""; $("cards").innerHTML = ""; $("table").innerHTML = ""; $("diagram").innerHTML = "";
+    $("ov").classList.remove("on");
+    $("cards").classList.add("hidden");
+    $("tableWrap").classList.remove("on");
+    $("diagramWrap").classList.remove("on");
+    $("summary").classList.remove("on");
+    $("toolbar").classList.remove("on");
+    $("inputState").textContent = "not parsed";
+    $("inputState").className = "state";
+    hideMsg();
+    setView("overview");
+    $("raw").focus();
+  }
+
+  $("parseBtn").addEventListener("click", doParse);
+  $("clearBtn").addEventListener("click", clearAll);
+  $("sampleBtn").addEventListener("click", function(){
+    state.fileMode = false;
+    $("raw").removeAttribute("readonly");
+    $("raw").value       = SAMPLE_CONFIG;
+    $("rawRoutes").value = SAMPLE_ROUTES;
+    $("rawSAs").value    = SAMPLE_SAS;
+    $("rawIKE").value    = SAMPLE_IKE;
+    $("fileNote").classList.add("hidden");
+    setOpt(true);
+    doParse();
+  });
+
+  $("fileBtn").addEventListener("click", function(){ $("fileInput").click(); });
+  $("fileInput").addEventListener("change", function(e){
+    if(e.target.files && e.target.files.length) readFile(e.target.files[0], "raw");
+  });
+
+  $("optToggle").addEventListener("click", function(){
+    setOpt(!$("opt").classList.contains("on"));
+  });
+
+  // Every pane is its own drop target, so a file lands where it was aimed.
+  Array.prototype.forEach.call(document.querySelectorAll(".drop"), function(zone){
+    var target = zone.getAttribute("data-target");
+    ["dragenter","dragover"].forEach(function(ev){
+      zone.addEventListener(ev, function(e){ e.preventDefault(); zone.classList.add("over"); });
+    });
+    ["dragleave","drop"].forEach(function(ev){
+      zone.addEventListener(ev, function(e){ e.preventDefault(); zone.classList.remove("over"); });
+    });
+    zone.addEventListener("drop", function(e){
+      var dt = e.dataTransfer;
+      if(dt && dt.files && dt.files.length) readFile(dt.files[0], target);
+    });
+  });
+
+  $("raw").addEventListener("paste", function(){
+    if(state.fileMode) return;
+    setTimeout(doParse, 30);
+  });
+  $("raw").addEventListener("focus", function(){ $("pane").classList.remove("stowed"); });
+  ["rawRoutes","rawSAs","rawIKE"].forEach(function(id){
+    $(id).addEventListener("paste", function(){ setTimeout(doParse, 30); });
+  });
+
+  $("filter").addEventListener("input", function(e){ state.filter = e.target.value; render(); });
+  $("activeOnly").addEventListener("change", function(e){ state.activeOnly = e.target.checked; render(); });
+  $("problemsOnly").addEventListener("change", function(e){ state.problemsOnly = e.target.checked; render(); });
+
+  $("viewOverview").addEventListener("click", function(){ setView("overview"); });
+  $("viewIfaces").addEventListener("click",   function(){ setView("ifaces"); });
+  $("viewZones").addEventListener("click",    function(){ setView("zones"); });
+  $("viewRoutes").addEventListener("click",   function(){ setView("routes"); });
+  $("viewDiagram").addEventListener("click",  function(){ setView("diagram"); });
+  $("viewPolicies").addEventListener("click", function(){ setView("policies"); });
+  $("viewVpn").addEventListener("click",      function(){ setView("vpn"); });
+
+  $("svgBtn").addEventListener("click", function(){
+    var host = $("diagram");
+    if(!host.querySelector("svg")){
+      showMsg("Nothing to export", "Build the report, then switch to the diagram view.");
+      return;
+    }
+    download(hostSlug() + "zone-diagram.svg",
+      '<?xml version="1.0" encoding="UTF-8"?>\n' + host.innerHTML, "image/svg+xml");
+  });
+
+  $("csvBtn").addEventListener("click", function(){
+    if(!state.built){ showMsg("Nothing to export", "Build the report first."); return; }
+    download(exportName() + ".csv", toCSV(), "text/csv");
+  });
+  $("mdBtn").addEventListener("click", function(e){
+    if(!state.built){ showMsg("Nothing to copy", "Build the report first."); return; }
+    var btn = e.currentTarget, md = toMarkdown();
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(md).then(function(){ flash(btn, "Copied"); },
+        function(){ fallbackCopy(md); flash(btn, "Copied"); });
+    } else { fallbackCopy(md); flash(btn, "Copied"); }
+  });
+
+  /* ============================ EXPOSED FOR TESTS ============================ */
+
+  window.__flatten          = flatten;
+  window.__parseConfig      = parseConfig;
+  window.__parseZones       = parseZones;
+  window.__parseRoutes      = parseRoutes;
+  window.__parseSAs         = parseSAs;
+  window.__parseIKE         = parseIKE;
+  window.__parseInterfaces  = function(t){ return parseInterfaces(flatten(t)); };
+  window.__parsePolicies    = function(t){ return policiesFromFlat(flatten(t)); };
+  window.__parseAddressBook = function(t){ return addressBooksFromFlat(flatten(t)); };
+  window.__parseVpns        = function(t){ return buildVpnCards(vpnsFromFlat(flatten(t))); };
+  window.__diagramItems     = diagramItems;
+  window.__network          = network;
+
+  /* ============================ SAMPLE ============================ */
+
+  var SAMPLE_CONFIG = [
+"version 21.4R3-S4.9;",
+"system {",
+"    host-name edge-srx-01;",
+"}",
+"interfaces {",
+"    ge-0/0/0 {",
+"        description \"reth0 member - user LAN\";",
+"        gigether-options {",
+"            redundant-parent reth0;",
+"        }",
+"    }",
+"    ge-0/0/1 {",
+"        description \"reth1 member - carrier handoff\";",
+"        gigether-options {",
+"            redundant-parent reth1;",
+"        }",
+"    }",
+"    reth0 {",
+"        description \"Internal user networks\";",
+"        vlan-tagging;",
+"        redundant-ether-options {",
+"            redundancy-group 1;",
+"        }",
+"        unit 0 {",
+"            vlan-id 10;",
+"            family inet {",
+"                address 10.1.0.1/24;",
+"            }",
+"        }",
+"        unit 100 {",
+"            description \"Voice VLAN\";",
+"            vlan-id 100;",
+"            family inet {",
+"                address 10.1.100.1/24;",
+"            }",
+"        }",
+"    }",
+"    reth1 {",
+"        unit 0 {",
+"            description \"Primary internet handoff\";",
+"            family inet {",
+"                address 203.0.113.10/24;",
+"            }",
+"        }",
+"    }",
+"    reth2 {",
+"        unit 0 {",
+"            description \"Carrier B, separate routing instance\";",
+"            family inet {",
+"                address 198.51.100.2/30;",
+"            }",
+"        }",
+"    }",
+"    st0 {",
+"        unit 0 {",
+"            description \"Tunnel to branch office\";",
+"            family inet;",
+"        }",
+"        unit 1 {",
+"            description \"Tunnel to partner - not yet zoned\";",
+"            family inet;",
+"        }",
+"    }",
+"    fxp0 {",
+"        unit 0 {",
+"            family inet {",
+"                address 192.168.250.10/24;",
+"            }",
+"        }",
+"    }",
+"    lo0 {",
+"        unit 0 {",
+"            family inet {",
+"                address 10.255.255.1/32;",
+"            }",
+"        }",
+"    }",
+"}",
+"routing-options {",
+"    static {",
+"        route 0.0.0.0/0 next-hop 203.0.113.254;",
+"        route 10.20.0.0/16 next-hop 10.1.0.9;",
+"        route 172.16.8.0/22 next-hop st0.0;",
+"        route 10.99.0.0/16 next-hop 192.0.2.9;",
+"        route 198.51.100.0/24 reject;",
+"    }",
+"}",
+"routing-instances {",
+"    ISP-B {",
+"        instance-type virtual-router;",
+"        interface reth2.0;",
+"        routing-options {",
+"            static {",
+"                route 0.0.0.0/0 next-hop 198.51.100.1;",
+"            }",
+"        }",
+"    }",
+"}",
+"protocols {",
+"    ospf {",
+"        area 0.0.0.0 {",
+"            interface reth0.0;",
+"        }",
+"    }",
+"}",
+"applications {",
+"    application app-mgmt-8443 {",
+"        protocol tcp;",
+"        destination-port 8443;",
+"    }",
+"}",
+"security {",
+"    address-book {",
+"        global {",
+"            address web-servers 192.0.2.10/32;",
+"            address branch-lan 172.16.8.0/22;",
+"            address voice-vlan 10.1.100.0/24;",
+"            address-set internal-nets {",
+"                address voice-vlan;",
+"                address 10.1.0.0/24;",
+"            }",
+"            address-set trusted-dst {",
+"                address web-servers;",
+"                address-set internal-nets;",
+"            }",
+"        }",
+"    }",
+"    ike {",
+"        proposal ike-aes256 {",
+"            authentication-method pre-shared-keys;",
+"            dh-group group14;",
+"            authentication-algorithm sha-256;",
+"            encryption-algorithm aes-256-cbc;",
+"            lifetime-seconds 28800;",
+"        }",
+"        proposal ike-legacy {",
+"            authentication-method pre-shared-keys;",
+"            dh-group group2;",
+"            authentication-algorithm sha1;",
+"            encryption-algorithm 3des-cbc;",
+"        }",
+"        policy ike-pol-branch {",
+"            mode main;",
+"            proposals ike-aes256;",
+"            pre-shared-key ascii-text \"$9$redactedByJunosItself\";",
+"        }",
+"        policy ike-pol-partner {",
+"            mode aggressive;",
+"            proposals ike-legacy;",
+"            pre-shared-key ascii-text \"$9$redactedByJunosItself\";",
+"        }",
+"        gateway gw-branch {",
+"            ike-policy ike-pol-branch;",
+"            address 198.51.100.77;",
+"            dead-peer-detection always-send;",
+"            external-interface reth1.0;",
+"            version v2-only;",
+"        }",
+"        gateway gw-partner {",
+"            ike-policy ike-pol-partner;",
+"            address 192.0.2.200;",
+"            external-interface reth1.0;",
+"        }",
+"    }",
+"    ipsec {",
+"        proposal ipsec-aes256 {",
+"            protocol esp;",
+"            authentication-algorithm hmac-sha-256-128;",
+"            encryption-algorithm aes-256-cbc;",
+"            lifetime-seconds 3600;",
+"        }",
+"        proposal ipsec-legacy {",
+"            protocol esp;",
+"            authentication-algorithm hmac-md5-96;",
+"            encryption-algorithm 3des-cbc;",
+"        }",
+"        policy ipsec-pol-branch {",
+"            perfect-forward-secrecy {",
+"                keys group14;",
+"            }",
+"            proposals ipsec-aes256;",
+"        }",
+"        policy ipsec-pol-partner {",
+"            proposals ipsec-legacy;",
+"        }",
+"        vpn to-branch {",
+"            bind-interface st0.0;",
+"            vpn-monitor {",
+"                optimized;",
+"            }",
+"            ike {",
+"                gateway gw-branch;",
+"                ipsec-policy ipsec-pol-branch;",
+"            }",
+"            establish-tunnels immediately;",
+"        }",
+"        vpn to-partner {",
+"            bind-interface st0.1;",
+"            ike {",
+"                gateway gw-partner;",
+"                proxy-identity {",
+"                    local 10.1.0.0/24;",
+"                    remote 192.0.2.0/24;",
+"                }",
+"                ipsec-policy ipsec-pol-partner;",
+"            }",
+"        }",
+"    }",
+"    zones {",
+"        functional-zone management {",
+"            interfaces {",
+"                fxp0.0;",
+"            }",
+"        }",
+"        security-zone trust {",
+"            description \"Internal user networks\";",
+"            screen untrust-screen;",
+"            interfaces {",
+"                reth0.0;",
+"                reth0.100;",
+"            }",
+"        }",
+"        security-zone untrust {",
+"            screen untrust-screen;",
+"            interfaces {",
+"                reth1.0;",
+"            }",
+"        }",
+"        security-zone vpn {",
+"            interfaces {",
+"                st0.0;",
+"            }",
+"        }",
+"        security-zone ISP-B-EDGE {",
+"            description \"Carrier B handoff, separate routing instance\";",
+"            interfaces {",
+"                reth2.0;",
+"            }",
+"        }",
+"        security-zone dmz {",
+"            description \"Public-facing servers - not built yet\";",
+"        }",
+"    }",
+"    policies {",
+"        from-zone trust to-zone untrust {",
+"            policy allow-web {",
+"                match {",
+"                    source-address internal-nets;",
+"                    destination-address any;",
+"                    application [ junos-http junos-https app-mgmt-8443 ];",
+"                }",
+"                then {",
+"                    permit;",
+"                    log {",
+"                        session-close;",
+"                    }",
+"                }",
+"            }",
+"            policy allow-all-out {",
+"                match {",
+"                    source-address any;",
+"                    destination-address any;",
+"                    application any;",
+"                }",
+"                then {",
+"                    permit;",
+"                }",
+"            }",
+"            policy allow-partner-mgmt {",
+"                match {",
+"                    source-address internal-nets;",
+"                    destination-address partner-servers;",
+"                    application app-mgmt-8443;",
+"                }",
+"                then {",
+"                    permit;",
+"                }",
+"            }",
+"        }",
+"        from-zone trust to-zone vpn {",
+"            policy to-branch-lan {",
+"                match {",
+"                    source-address internal-nets;",
+"                    destination-address branch-lan;",
+"                    application any;",
+"                }",
+"                then {",
+"                    permit {",
+"                        tunnel {",
+"                            ipsec-vpn to-branch;",
+"                        }",
+"                    }",
+"                }",
+"            }",
+"        }",
+"        from-zone untrust to-zone trust {",
+"            policy deny-all {",
+"                match {",
+"                    source-address any;",
+"                    destination-address any;",
+"                    application any;",
+"                }",
+"                then {",
+"                    deny;",
+"                }",
+"            }",
+"        }",
+"        default-policy {",
+"            deny-all;",
+"        }",
+"    }",
+"}"
+].join("\n");
+
+  var SAMPLE_ROUTES = [
+"inet.0: 9 destinations, 9 routes (9 active, 0 holddown, 0 hidden)",
+"+ = Active Route, - = Last Active, * = Both",
+"",
+"0.0.0.0/0          *[Static/5] 2w3d 04:12:33",
+"                    >  to 203.0.113.254 via reth1.0",
+"10.1.0.0/24        *[Direct/0] 5w0d 11:02:41",
+"                    >  via reth0.0",
+"172.16.8.0/22      *[Static/5] 6d 01:33:20",
+"                    >  via st0.0",
+"203.0.113.0/24     *[Direct/0] 2w3d 04:12:35",
+"                    >  via reth1.0"
+].join("\n");
+
+  var SAMPLE_SAS = [
+"node0:",
+"--------------------------------------------------------------------------",
+"  ID: 500001 Virtual-system: root, VPN Name: to-branch",
+"  Local Gateway: 203.0.113.10, Remote Gateway: 198.51.100.77",
+"  Local Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)",
+"  Remote Identity: ipv4_subnet(any:0,[0..7]=0.0.0.0/0)",
+"  Version: IKEv2",
+"  Bind-interface: st0.0",
+"  Port: 500, Nego#: 3, Fail#: 0, Def-Del#: 0 Flag: 0x600a29",
+"    Direction: inbound, SPI: 0x0a2b3c4d, AUX-SPI: 0",
+"                              , VPN Monitoring: -",
+"      Hard lifetime: Expires in 2891 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 2276 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: installed",
+"      Protocol: ESP, Authentication: hmac-sha-256-128, Encryption: aes-256-cbc",
+"      Anti-replay service: counter-based enabled, Replay window size: 64",
+"    Direction: outbound, SPI: 0x1f2e3d4c, AUX-SPI: 0",
+"                              , VPN Monitoring: -",
+"      Hard lifetime: Expires in 2891 seconds",
+"      Lifesize Remaining:  Unlimited",
+"      Soft lifetime: Expires in 2301 seconds",
+"      Mode: Tunnel(0 0), Type: dynamic, State: installed",
+"      Protocol: ESP, Authentication: hmac-sha-256-128, Encryption: aes-256-cbc",
+"      Anti-replay service: counter-based enabled, Replay window size: 64"
+].join("\n");
+
+  var SAMPLE_IKE = [
+"node0:",
+"--------------------------------------------------------------------------",
+"IKE peer 198.51.100.77, Index 6666666, Gateway Name: gw-branch",
+"  Role: Initiator, State: UP",
+"  Initiator cookie: 5d3f2a1b9c8e7f60, Responder cookie: a1b2c3d4e5f60718",
+"  Exchange type: IKEv2, Authentication method: Pre-shared-keys",
+"  Local: 203.0.113.10:500, Remote: 198.51.100.77:500",
+"  Lifetime: Expires in 22391 seconds",
+"  Reauth Lifetime: Disabled",
+"  Peer ike-id: 198.51.100.77",
+"  Algorithms:",
+"   Authentication        : hmac_sha256_128",
+"   Encryption            : aes256_cbc",
+"   Pseudo random function: hmac_sha256",
+"   Diffie-Hellman group  : DH-group-14",
+"  Traffic statistics:",
+"   Input  bytes  :                59616",
+"   Output bytes  :                60432",
+"   Input  packets:                  452",
+"   Output packets:                  453",
+"  IPSec security associations: 2 created, 0 deleted",
+"  Phase 2 negotiations in progress: 0",
+"",
+"IKE peer 192.0.2.200, Index 6666702, Gateway Name: gw-partner",
+"  Role: Responder, State: DOWN",
+"  Initiator cookie: 0011223344556677, Responder cookie: 8899aabbccddeeff",
+"  Exchange type: Aggressive, Authentication method: Pre-shared-keys",
+"  Local: 203.0.113.10:500, Remote: 192.0.2.200:500",
+"  Algorithms:",
+"   Authentication        : hmac_sha1_96",
+"   Encryption            : 3des_cbc",
+"   Diffie-Hellman group  : DH-group-2",
+"  IPSec security associations: 0 created, 0 deleted",
+"  Phase 2 negotiations in progress: 0"
+].join("\n");
+
+})();
+</script>
+</body>
+</html>
