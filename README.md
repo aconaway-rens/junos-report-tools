@@ -24,6 +24,7 @@ them by hand. This does the joins.
 | **Diagram** | A device wired out to each zone, one route box per interface — downloads as SVG |
 | **Policies** | Ordered per zone pair, with addresses and applications resolved through the address book |
 | **VPN** | `security ipsec vpn` joined to its gateway, policies and proposals, alongside live IKE and IPsec state |
+| **Flow** | Would this flow pass? Writes the `show security match-policies` command, then reads the device's answer back against the config |
 
 Both config forms are read — curly-brace and `| display set` — and you can mix them.
 
@@ -45,6 +46,19 @@ Where a live capture overlaps the configuration the live one wins, **and the dif
 reported**: a static route that never made it into the RIB, a phase 1 that came up on
 algorithms the proposals merely allowed, a tunnel negotiated at phase 1 with no phase 2
 behind it.
+
+### Testing a flow
+
+The **Flow** view takes a source, destination, port and protocol, fills in the zones from
+the routes, and writes the `show security match-policies` command for you. Run it on the
+box, paste what it printed, and the answer is read back against the configuration:
+which address and application entries the flow fell inside, a policy the device matched
+that the config paste does not have, a deny sitting ahead of a permit that would have
+passed the flow, a permit into a tunnel that is down, cluster nodes that disagree.
+
+The device makes the decision, not this page. Predefined `junos-*` applications and
+anything inherited through apply-groups are not in the configuration, so a verdict worked
+out locally would only be a plausible guess.
 
 ## What it will not do
 

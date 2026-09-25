@@ -51,7 +51,7 @@
   textarea{width:100%;min-height:230px;resize:vertical;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:5px;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 13px}
   textarea::placeholder{color:var(--ink-faint)}
   textarea:read-only{color:var(--ink-dim)}
-  textarea:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--in);outline-offset:2px}
+  textarea:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--in);outline-offset:2px}
   .pane.stowed textarea{min-height:72px;height:72px}
   .filenote{margin-top:6px;font-size:12px;color:var(--ink-faint);font-family:var(--mono)}
 
@@ -268,6 +268,36 @@
   .kv.link{cursor:pointer}
   .kv.link:hover .k{color:var(--ink)}
 
+  /* ---------- flow ---------- */
+  .flow{display:none;margin-top:22px;flex-direction:column;gap:14px}
+  .flow.on{display:flex}
+  .flow-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 16px;padding:14px 16px}
+  .fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .fld select,.fld input{width:100%;background:var(--ground);color:var(--ink);border:1px solid var(--rule);border-radius:4px;font-family:var(--mono);font-size:13px;padding:7px 9px}
+  .fld input::placeholder{color:var(--ink-faint)}
+  .fld .hint{font-family:var(--mono);font-size:11px;color:var(--ink-faint);min-height:1.3em;word-break:break-word}
+  .fld .hint.known{color:var(--in)}
+  .fld .hint.warn{color:var(--out)}
+  .fld .hint.bad{color:var(--alert)}
+  .cmdbox{border-top:1px solid var(--rule-soft);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .cmdbox pre{flex:1;min-width:240px;margin:0;background:var(--ground);border:1px solid var(--rule);border-radius:4px;padding:9px 11px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;word-break:break-all;color:var(--ink)}
+  .cmdbox pre.pending{color:var(--ink-faint)}
+  button:disabled{opacity:.45;cursor:default}
+  .flow-paste{padding:12px 16px}
+  .flow textarea{min-height:150px;font-size:11.5px}
+  .verdict{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:14px 16px;border-top:1px solid var(--rule-soft);border-left:3px solid var(--rule)}
+  .verdict.permit{border-left-color:var(--ok)}
+  .verdict.deny{border-left-color:var(--alert)}
+  .verdict .vword{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .verdict.permit .vword{color:var(--ok)}
+  .verdict.deny .vword{color:var(--alert)}
+  .verdict .vname{font-size:14px}
+  .verdict .vname b{font-family:var(--mono);font-weight:600}
+  .verdict .vsub{font-family:var(--mono);font-size:12px;color:var(--ink-dim);margin-top:2px}
+  .hitrow{display:grid;grid-template-columns:110px minmax(130px,auto) 1fr;gap:6px 14px;align-items:start;padding:9px 16px;border-top:1px solid var(--rule-soft)}
+  .hitrow .fq{font-family:var(--mono);font-size:12.5px;padding-top:3px}
+  .hitrow .eyebrow{padding-top:5px}
+
   .hidden{display:none !important}
   .foot{margin-top:34px;font-size:12px;color:var(--ink-faint);line-height:1.6}
   .foot code{font-family:var(--mono)}
@@ -279,6 +309,11 @@
     .gw.remote,.sel.remote-sel{text-align:left}
     .selectors{grid-template-columns:1fr;gap:10px}
     .attrs{flex-direction:column;gap:4px}
+    .flow-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .hitrow{grid-template-columns:1fr}
+  }
+  @media (max-width:520px){
+    .flow-form{grid-template-columns:1fr}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
 </style>
@@ -419,6 +454,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
       <button id="viewDiagram" aria-pressed="false">Diagram</button>
       <button id="viewPolicies" aria-pressed="false">Policies</button>
       <button id="viewVpn" aria-pressed="false">VPN</button>
+      <button id="viewFlow" aria-pressed="false">Flow</button>
     </div>
   </div>
 
@@ -454,6 +490,85 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     <div id="diagram"></div>
   </div>
 
+  <div class="flow" id="flow">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-name">Test a flow</span>
+        <span class="cmd">show security match-policies</span>
+        <span class="spacer"></span>
+        <span class="eyebrow">the device decides &middot; this page writes the question and reads the answer</span>
+      </div>
+      <div class="flow-form">
+        <div class="fld">
+          <label class="eyebrow" for="flowSrc">Source address</label>
+          <input type="text" id="flowSrc" spellcheck="false" autocomplete="off" placeholder="10.1.0.25">
+        </div>
+        <div class="fld">
+          <label class="eyebrow" for="flowFrom">From zone</label>
+          <select id="flowFrom"></select>
+          <span class="hint" id="flowFromHint"></span>
+        </div>
+        <div class="fld">
+          <label class="eyebrow" for="flowSport">Source port</label>
+          <input type="text" id="flowSport" spellcheck="false" autocomplete="off" inputmode="numeric" placeholder="1024">
+        </div>
+        <div class="fld">
+          <label class="eyebrow" for="flowProto">Protocol</label>
+          <input type="text" id="flowProto" list="flowProtoList" spellcheck="false" autocomplete="off" value="tcp">
+          <datalist id="flowProtoList">
+            <option value="tcp"></option><option value="udp"></option><option value="icmp"></option>
+            <option value="icmp6"></option><option value="gre"></option><option value="esp"></option>
+            <option value="ah"></option><option value="sctp"></option><option value="ospf"></option>
+          </datalist>
+        </div>
+        <div class="fld">
+          <label class="eyebrow" for="flowDst">Destination address</label>
+          <input type="text" id="flowDst" spellcheck="false" autocomplete="off" placeholder="192.0.2.80">
+        </div>
+        <div class="fld">
+          <label class="eyebrow" for="flowTo">To zone</label>
+          <select id="flowTo"></select>
+          <span class="hint" id="flowToHint"></span>
+        </div>
+        <div class="fld">
+          <label class="eyebrow" for="flowDport">Destination port</label>
+          <input type="text" id="flowDport" spellcheck="false" autocomplete="off" inputmode="numeric" placeholder="443">
+        </div>
+        <div class="fld">
+          <label class="eyebrow" for="flowCount">Matches to list</label>
+          <input type="text" id="flowCount" spellcheck="false" autocomplete="off" inputmode="numeric" placeholder="1">
+          <span class="hint">up to 16 &middot; shows what sits behind the first match</span>
+        </div>
+      </div>
+      <div class="cmdbox">
+        <pre id="flowCmd" class="pending"></pre>
+        <button id="flowCopy" disabled>Copy command</button>
+      </div>
+      <div class="notes hidden" id="flowCmdNotes"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <label class="card-name" for="flowResult">Device answer</label>
+        <span class="spacer"></span>
+        <span class="state idle" id="flowResState">waiting</span>
+      </div>
+      <div class="flow-paste">
+        <div class="drop" data-target="flowResult">
+          <textarea id="flowResult" spellcheck="false" placeholder="Run the command above on the firewall and paste everything it printed here, prompt line included.
+
+Policy: allow-web, action-type: permit, State: enabled, Index: 4
+  Policy Type: Configured
+  Sequence number: 1
+  From zone: trust, To zone: untrust
+  Source addresses:
+    internal-nets: 10.1.0.0/24"></textarea>
+        </div>
+      </div>
+      <div id="flowReport"></div>
+    </div>
+  </div>
+
   <p class="foot">
     <b>Where the numbers come from.</b> Everything on this page is read out of the text above — the file
     you open is read in the browser and never leaves it. Routes marked <code>config</code> are the
@@ -473,7 +588,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     tunnel negotiated at phase 1 with no phase 2 SA behind it. Take the captures from the same
     box at the same time — a stale one attributes traffic to the wrong place.
   </p>
-  <div class="ver">Version 1.1</div>
+  <div class="ver">Version 1.2</div>
 </div>
 
 <script>
@@ -1806,6 +1921,464 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     return out;
   }
 
+  /* ============================ MATCH-POLICIES (operational) ============================
+     The Flow view writes a "show security match-policies" command, the engineer runs it
+     on the box and pastes the answer back. The device has done the evaluation; this only
+     reads what it said and holds it up against the configuration. It never decides a
+     match itself - the predefined junos-* applications and anything inherited through
+     apply-groups are not in the paste, so a local verdict would be a plausible guess.  */
+
+  var MP_PROTO = { icmp:1, igmp:2, ipip:4, tcp:6, egp:8, udp:17, rsvp:46, gre:47, esp:50, ah:51,
+                   icmp6:58, ospf:89, pim:103, vrrp:112, sctp:132 };
+  var MP_CMD_RE  = /show\s+security\s+match-policies\b(.*)$/i;
+  var MP_HEAD_RE = /^\s*Policy:\s*([^,]+?)\s*,\s*action-type:\s*([^,\s]+)/i;
+  var MP_ERR_RE  = /^\s*(error:.*|syntax error.*|missing argument.*|invalid .*)$/i;
+
+  function protoNum(p){
+    p = String(p == null ? "" : p).trim().toLowerCase();
+    if(/^\d{1,3}$/.test(p)){ var n = parseInt(p,10); return n <= 255 ? n : null; }
+    return MP_PROTO.hasOwnProperty(p) ? MP_PROTO[p] : null;
+  }
+  // Only these carry ports that a policy application can match on.
+  function protoHasPorts(p){ var n = protoNum(p); return n === 6 || n === 17 || n === 132; }
+
+  // "from-zone trust to-zone untrust source-ip ..." -> { "from-zone":"trust", ... }
+  function parseMatchArgs(s){
+    var toks = String(s || "").split("|")[0].trim().split(/\s+/).filter(Boolean), out = {}, i, k;
+    for(i=0;i<toks.length;i++){
+      k = toks[i].toLowerCase();
+      if(k === "global" || k === "root-logical-system"){ out[k] = true; continue; }
+      if(i + 1 < toks.length){ out[k] = toks[i+1]; i++; }
+    }
+    return out;
+  }
+
+  function mpEntry(line){
+    var m = line.match(/^\s*(\S+?):\s+(.+?)\s*$/) || line.match(/^\s*(\S+)\s*$/);
+    if(!m) return null;
+    var label = m[1], book = "", b = label.match(/^(.*?)\(([^)]*)\)$/);
+    if(b){ label = b[1]; book = b[2]; }
+    return { name:label, book:book, addr:m[2] ? m[2] : "" };
+  }
+
+  function parseMatchPolicies(text){
+    var res = { query:null, cmdLine:"", blocks:[], primary:[], nodes:[], errors:[], lines:0, firstLine:"" };
+    if(!text || !String(text).trim()) return res;
+    var lines = String(text).replace(/\r\n?/g,"\n").split("\n");
+    var node = "", cur = null, sec = "", app = null, term = null, i, ln, m, e;
+
+    function close(){ if(cur) res.blocks.push(cur); cur = null; sec = ""; app = null; term = null; }
+
+    for(i=0;i<lines.length;i++){
+      ln = lines[i];
+      if(!ln.trim()) continue;
+      res.lines++;
+      if(!res.firstLine) res.firstLine = ln.trim();
+
+      m = ln.match(NODE_RE);
+      if(m){ close(); node = m[1].toLowerCase(); push(res.nodes, node); continue; }
+      m = ln.match(MP_CMD_RE);
+      if(m){
+        if(!res.query){ res.query = parseMatchArgs(m[1]); res.cmdLine = "show security match-policies" + m[1].split("|")[0].replace(/\s+$/,""); }
+        continue;
+      }
+      if(MP_ERR_RE.test(ln)){ res.errors.push(ln.trim()); continue; }
+
+      m = ln.match(MP_HEAD_RE);
+      if(m){
+        close();
+        cur = { node:node, name:m[1], action:m[2].toLowerCase(),
+                state:grab(ln, /State:\s*([^,\s]+)/i), index:grab(ln, /Index:\s*(\d+)/i),
+                type:"", seq:"", from:"", to:"", tunnel:"", src:[], dst:[], apps:[] };
+        continue;
+      }
+      if(!cur) continue;
+
+      if(/^\s*Policy Type:/i.test(ln))     { cur.type = grab(ln, /Policy Type:\s*(.+?)\s*$/i); sec = ""; continue; }
+      if(/^\s*Sequence number:/i.test(ln)) { cur.seq  = grab(ln, /Sequence number:\s*(\d+)/i); sec = ""; continue; }
+      if(/^\s*From zone:/i.test(ln)){
+        cur.from = grab(ln, /From zone:\s*([^,]*?)\s*(?:,|$)/i);
+        cur.to   = grab(ln, /To zone:\s*(\S*)/i);
+        sec = ""; continue;
+      }
+      if(/^\s*Tunnel:/i.test(ln)){ cur.tunnel = grab(ln, /Tunnel:\s*([^,\s]+)/i); sec = ""; continue; }
+
+      m = ln.match(/^\s*(Source|Destination) addresses:\s*(.*)$/i);
+      if(m){
+        sec = m[1].toLowerCase() === "source" ? "src" : "dst";
+        if(m[2].trim()){ e = mpEntry(m[2]); if(e) cur[sec].push(e); }
+        continue;
+      }
+      m = ln.match(/^\s*Application:\s*(\S+)/i);
+      if(m){
+        sec = "app"; term = null;
+        app = { name:m[1], terms:[] };
+        cur.apps.push(app);
+        continue;
+      }
+      if(sec === "app" && app){
+        if(/IP protocol:/i.test(ln)){
+          term = { protocol:grab(ln, /IP protocol:\s*([^,\s]+)/i), sport:[], dport:[], icmp:"" };
+          app.terms.push(term);
+          continue;
+        }
+        if(!term){ term = { protocol:"", sport:[], dport:[], icmp:"" }; app.terms.push(term); }
+        m = ln.match(/(Source|Destination) port range:\s*\[\s*(\d+)\s*-\s*(\d+)\s*\]/i);
+        if(m){ term[m[1].toLowerCase() === "source" ? "sport" : "dport"].push([parseInt(m[2],10), parseInt(m[3],10)]); continue; }
+        m = ln.match(/ICMP Information:\s*(.+?)\s*$/i);
+        if(m){ term.icmp = m[1]; continue; }
+        if(/^\s*\S[^:]*:\s*\S/.test(ln) && !/^\s{4,}/.test(ln)){ sec = ""; }
+        continue;
+      }
+      // Any other bare "Label:" header (vrf group, identity feeds, ...) ends an address list.
+      if(/^\s*[A-Za-z][A-Za-z \-]*:\s*$/.test(ln) || /^\s*Per policy/i.test(ln)){ sec = ""; continue; }
+      if(sec === "src" || sec === "dst"){ e = mpEntry(ln); if(e) cur[sec].push(e); }
+    }
+    close();
+
+    // On a cluster both nodes answer. The first node's list is the answer; the other
+    // is checked against it rather than appended to it.
+    var firstNode = res.blocks.length ? res.blocks[0].node : "";
+    res.primary = res.blocks.filter(function(b){ return b.node === firstNode; });
+    return res;
+  }
+
+  function isDefaultMatch(b){
+    return !!b && (/^default-(policy|deny|permit)/i.test(b.name) || /default/i.test(b.type));
+  }
+
+  // true when the entry holds the address, false when it plainly does not, null when
+  // the entry is a form this cannot judge (wildcard mask, DNS name).
+  function addrContains(entry, ip){
+    var bits = ipBits(ip);
+    if(!bits) return null;
+    if(!entry.addr){
+      if(entry.name === "any") return true;
+      if(entry.name === "any-ipv4") return bits.length === 32;
+      if(entry.name === "any-ipv6") return bits.length === 128;
+      return null;
+    }
+    var a = String(entry.addr).trim(), r = a.split(/\s*~\s*/), lo, hi, net;
+    if(r.length === 2){
+      lo = ipBits(r[0]); hi = ipBits(r[1]);
+      if(!lo || !hi) return null;
+      if(lo.length !== bits.length) return false;
+      return bits >= lo && bits <= hi;          // equal-length bit strings compare as numbers
+    }
+    net = network(a.indexOf("/") === -1 ? a + "/" + (a.indexOf(":") !== -1 ? 128 : 32) : a);
+    if(!net) return null;
+    if(net.bits.length !== bits.length) return false;
+    return inNet(bits, net);
+  }
+
+  function inRanges(port, ranges){
+    if(!ranges.length) return true;
+    return ranges.some(function(rg){
+      if(rg[0] === 0 && rg[1] === 0) return true;       // [0-0] is printed for "not constrained"
+      return port >= rg[0] && port <= rg[1];
+    });
+  }
+
+  function appContains(app, q){
+    if(app.name === "any") return true;
+    if(!app.terms.length) return null;
+    var want = protoNum(q.proto);
+    if(want === null) return null;
+    var sp = toInt(q.sport), dp = toInt(q.dport), unknown = false;
+    var hit = app.terms.some(function(t){
+      var got = protoNum(t.protocol);
+      if(got === null){ if(t.protocol && !/^(any|0)$/i.test(t.protocol)){ unknown = true; return false; } }
+      else if(got !== 0 && got !== want) return false;
+      if(!protoHasPorts(q.proto)) return true;
+      return (sp === null || inRanges(sp, t.sport)) && (dp === null || inRanges(dp, t.dport));
+    });
+    return hit ? true : (unknown ? null : false);
+  }
+
+  function appLabel(app){
+    var parts = app.terms.map(function(t){
+      if(t.icmp) return (t.protocol || "icmp") + " " + t.icmp;
+      var d = t.dport.filter(function(rg){ return !(rg[0] === 0 && rg[1] === 0); })
+                     .map(function(rg){ return rg[0] === rg[1] ? String(rg[0]) : rg[0] + "-" + rg[1]; });
+      return (t.protocol || "?") + (d.length ? "/" + d.join(",") : "");
+    });
+    return uniq(parts).join(" ");
+  }
+
+  /* ---- the question ---- */
+
+  var MP_FIELDS = [
+    ["from", "from-zone"], ["to", "to-zone"], ["src", "source-ip"], ["dst", "destination-ip"],
+    ["sport", "source-port"], ["dport", "destination-port"], ["proto", "protocol"], ["count", "result-count"]
+  ];
+
+  function buildMatchCommand(f){
+    var missing = [], problems = [], notes = [], v = {}, auto = {}, i;
+    for(i=0;i<MP_FIELDS.length;i++) v[MP_FIELDS[i][0]] = String(f[MP_FIELDS[i][0]] == null ? "" : f[MP_FIELDS[i][0]]).trim();
+    v.proto = v.proto.toLowerCase();
+
+    if(!v.from) missing.push("from-zone");
+    if(!v.to)   missing.push("to-zone");
+
+    function addr(val, key, label){
+      if(!val){ missing.push(key); return null; }
+      if(val.indexOf("/") !== -1){ problems.push(label + " " + val + " is a prefix. The command tests one flow, so give it one address."); return null; }
+      var b = ipBits(val);
+      if(!b) problems.push(label + " " + val + " is not an IPv4 or IPv6 address.");
+      return b;
+    }
+    var sb = addr(v.src, "source-ip", "Source"), db = addr(v.dst, "destination-ip", "Destination");
+    if(sb && db && sb.length !== db.length) problems.push("Source and destination are different address families.");
+
+    if(!v.proto) missing.push("protocol");
+    else if(protoNum(v.proto) === null){
+      problems.push("Protocol " + v.proto + " is not one this page knows. Use a name (tcp, udp, icmp, ...) or a number from 0 to 255.");
+    }
+
+    function port(val, key){
+      if(!/^\d+$/.test(val) || +val < 1 || +val > 65535){ problems.push(key + " " + val + " is not a port from 1 to 65535."); }
+    }
+    if(protoHasPorts(v.proto)){
+      if(!v.dport) missing.push("destination-port"); else port(v.dport, "destination-port");
+      if(!v.sport){
+        v.sport = "1024"; auto.sport = true;
+        notes.push({level:"info", text:"No source port given, so 1024 is used. Applications seldom constrain the source port; enter one if yours does."});
+      } else port(v.sport, "source-port");
+    } else if(v.proto && protoNum(v.proto) !== null){
+      if(!v.sport){ v.sport = "1"; auto.sport = true; }
+      if(!v.dport){ v.dport = "1"; auto.dport = true; }
+      if(v.sport === "1" || v.dport === "1"){
+        notes.push({level:"info", text:"The command takes ports even for " + v.proto + ", which has none. 1 is used as a placeholder where no port was entered."});
+      }
+      if(v.sport !== "1") port(v.sport, "source-port");
+      if(v.dport !== "1") port(v.dport, "destination-port");
+    }
+    if(v.count && !(/^\d+$/.test(v.count) && +v.count >= 1 && +v.count <= 16)){
+      problems.push("Matches to list must be a number from 1 to 16.");
+    }
+
+    var cmd = "";
+    if(!missing.length && !problems.length){
+      cmd = "show security match-policies from-zone " + v.from + " to-zone " + v.to +
+            " source-ip " + v.src + " destination-ip " + v.dst +
+            " source-port " + v.sport + " destination-port " + v.dport +
+            " protocol " + v.proto + (v.count ? " result-count " + v.count : "");
+    }
+    return { cmd:cmd, missing:missing, problems:problems, notes:notes, q:v, auto:auto };
+  }
+
+  /* ---- the answer ---- */
+
+  // The flow the output answers. The command line in the paste is what actually ran,
+  // so it wins over the form; the form is only the fallback when the prompt line was
+  // not copied.
+  function flowOf(res, formQ){
+    if(!res.query) return formQ;
+    var q = {}, i, a = res.query;
+    for(i=0;i<MP_FIELDS.length;i++) q[MP_FIELDS[i][0]] = a[MP_FIELDS[i][1]] == null ? "" : String(a[MP_FIELDS[i][1]]);
+    q.proto = q.proto.toLowerCase();
+    return q;
+  }
+
+  // formAuto names the form fields this page filled in itself (a placeholder port),
+  // which are not the engineer's claim about the flow and so are not compared.
+  function interpretMatch(res, formQ, formCmd, m, formAuto){
+    var out = { first:null, later:[], cfg:null, pairTotal:0, q:null, verdict:"", isDefault:false,
+                src:[], dst:[], apps:[], notes:[], cmdLine:res.cmdLine };
+    var q = out.q = flowOf(res, formQ);
+    var first = out.first = res.primary[0] || null;
+    if(!first) return out;
+    out.later = res.primary.slice(1);
+    out.isDefault = isDefaultMatch(first);
+    out.verdict = first.action === "permit" ? "permit" : "deny";
+    var notes = out.notes;
+
+    // What was pasted answers a different question from the one on the form.
+    if(res.query && formCmd){
+      var diffs = [];
+      MP_FIELDS.forEach(function(fd){
+        var a = String(q[fd[0]] || ""), b = String(formQ[fd[0]] || "");
+        if(fd[0] === "count" || (formAuto || {})[fd[0]]) return;
+        if(a && b && a.toLowerCase() !== b.toLowerCase()) diffs.push(fd[1] + " " + a + " (form: " + b + ")");
+      });
+      if(diffs.length){
+        notes.push({level:"warn", text:"The pasted output is for a different flow than the form: " + diffs.join(", ") +
+          ". It is read as an answer to the command in the paste."});
+      }
+    } else if(!res.query && formCmd){
+      notes.push({level:"info", text:"No command line in the paste, so this is read as the answer to the command above."});
+    }
+
+    // Which entry of the matched policy the flow actually hit. Taken from what the
+    // device printed, not from the configuration, so it is the device's own reading.
+    function mark(entries, ip){
+      return entries.map(function(en){ return { e:en, hit: ip ? addrContains(en, ip) : null }; });
+    }
+    out.src  = mark(first.src, q.src);
+    out.dst  = mark(first.dst, q.dst);
+    out.apps = first.apps.map(function(a){ return { a:a, hit: appContains(a, q) }; });
+
+    function allMiss(list){ return list.length && list.every(function(x){ return x.hit === false; }); }
+    if(!out.isDefault){
+      if(allMiss(out.src)) notes.push({level:"warn", text:"None of the source addresses the device listed contain " + q.src + ". This output is probably for a different flow."});
+      if(allMiss(out.dst)) notes.push({level:"warn", text:"None of the destination addresses the device listed contain " + q.dst + ". This output is probably for a different flow."});
+      if(allMiss(out.apps)) notes.push({level:"warn", text:"None of the applications the device listed cover " + q.proto + (q.dport ? "/" + q.dport : "") + ". This output is probably for a different flow."});
+    }
+
+    if(first.state && !/^enabled$/i.test(first.state)){
+      notes.push({level:"warn", text:"The device reports this policy as " + first.state + "."});
+    }
+
+    // Hold it up against the configuration.
+    var pairPols = m.policies.filter(function(p){ return !p.global && p.from === q.from && p.to === q.to; });
+    out.pairTotal = pairPols.length;
+
+    if(out.isDefault){
+      if(!m.policies.length){
+        notes.push({level:"info", text:"No security policies in the configuration paste, so this cannot be cross-checked."});
+      } else if(!pairPols.length){
+        notes.push({level:"info", text:"The configuration has no policy from " + q.from + " to " + q.to +
+          " at all, so every flow between them falls to the default policy."});
+      } else {
+        var live = pairPols.filter(function(p){ return !p.inactive; });
+        notes.push({level:"info", text:plural(pairPols.length, "policy", "policies") + " from " + q.from + " to " + q.to +
+          " in the configuration (" + live.map(function(p){ return p.name; }).join(", ") +
+          "), and none of them matched this flow. Check their source, destination and application against it."});
+      }
+      var cfgDef = /permit/i.test(m.defaultPolicy) ? "permit" : (m.defaultPolicy ? "deny" : "");
+      if(cfgDef && cfgDef !== out.verdict){
+        notes.push({level:"bad", text:"The device applied a default " + first.action + ", but the configuration paste says default-policy " +
+          m.defaultPolicy + ". The paste is not the configuration this device is running."});
+      }
+    } else {
+      var cfg = null;
+      m.policies.forEach(function(p){
+        if(cfg || p.name !== first.name) return;
+        if(p.global || !first.from || (p.from === first.from && p.to === first.to)) cfg = p;
+      });
+      out.cfg = cfg;
+      if(cfg){
+        if(cfg.action && cfg.action !== first.action){
+          notes.push({level:"bad", text:"The device matched " + first.name + " with action " + first.action +
+            ", but the configuration paste says " + cfg.action + ". The paste is not the configuration this device is running."});
+        }
+        if(cfg.inactive){
+          notes.push({level:"bad", text:first.name + " is inactive in the configuration paste, yet the device evaluated it. The paste is not the configuration this device is running."});
+        }
+        if(cfg.global){
+          notes.push({level:"info", text:first.name + " is a global policy. Zone-pair policies are evaluated first, so nothing from " +
+            q.from + " to " + q.to + " matched before it."});
+        }
+        if(first.action === "permit" && cfg.tunnel){
+          var vc = null;
+          m.vpns.forEach(function(c){ if(c.name === cfg.tunnel) vc = c; });
+          if(vc && vc.sa && vc.sa.status !== "up" && vc.sa.status !== "backup"){
+            notes.push({level:"bad", text:"Permitted into IPsec VPN " + cfg.tunnel + ", whose SA is " + vc.sa.status +
+              " in the pasted capture. The policy passes the flow into a tunnel that is not up."});
+          } else if(vc && !vc.sa){
+            notes.push({level:"info", text:"Permitted into IPsec VPN " + cfg.tunnel + ". Paste show security ipsec security-associations to see whether it is up."});
+          }
+        }
+        (cfg.notes || []).forEach(function(n){ if(n.level !== "info") notes.push(n); });
+      } else if(m.policies.length){
+        notes.push({level:"warn", text:"Policy " + first.name + (first.from ? " (" + first.from + " to " + first.to + ")" : "") +
+          " is not in the configuration paste. The paste is from another box or is out of date, or the policy is inherited through apply-groups."});
+      } else {
+        notes.push({level:"info", text:"No security policies in the configuration paste, so this cannot be cross-checked."});
+      }
+      if(first.from && first.to && q.from && q.to && !(cfg && cfg.global) &&
+         (first.from !== q.from || first.to !== q.to)){
+        notes.push({level:"warn", text:"Asked about " + q.from + " to " + q.to + ", but the policy returned is from " +
+          first.from + " to " + first.to + "."});
+      }
+    }
+
+    // result-count > 1: what sits behind the first match.
+    var permitsLater = out.later.filter(function(b){ return b.action === "permit" && !isDefaultMatch(b); });
+    var deniesLater  = out.later.filter(function(b){ return b.action !== "permit" && !isDefaultMatch(b); });
+    if(out.verdict === "deny" && !out.isDefault && permitsLater.length){
+      notes.push({level:"warn", text:permitsLater.map(function(b){ return b.name; }).join(", ") +
+        " would also permit this flow but " + (permitsLater.length === 1 ? "comes" : "come") + " after " + first.name +
+        ", and Junos stops at the first match. Move it above " + first.name + " if this flow should pass."});
+    }
+    if(out.verdict === "permit" && deniesLater.length){
+      notes.push({level:"info", text:deniesLater.map(function(b){ return b.name; }).join(", ") +
+        " also " + (deniesLater.length === 1 ? "matches" : "match") + " this flow and would deny it, but " +
+        (deniesLater.length === 1 ? "is" : "are") + " never reached."});
+    }
+
+    // On a cluster both nodes should give the same answer.
+    var byNode = {};
+    res.blocks.forEach(function(b){ if(b.node && !byNode[b.node]) byNode[b.node] = b; });
+    res.nodes.forEach(function(n){
+      var b = byNode[n];
+      if(!b || b === first) return;
+      if(b.name !== first.name || b.action !== first.action){
+        notes.push({level:"bad", text:n + " answered " + b.name + " (" + b.action + ") where " + (first.node || "the first node") +
+          " answered " + first.name + " (" + first.action + "). Both nodes of a cluster should hold the same policy."});
+      }
+    });
+
+    if(res.errors.length){
+      notes.push({level:"warn", text:"The device also printed: " + res.errors[0]});
+    }
+    return out;
+  }
+
+  /* ---- zone from routes ----
+     The zone a flow leaves by is the zone of the interface the route to its
+     destination goes out of - the same route -> interface -> zone join the rest of the
+     report uses, and the same lookup run toward the source gives the zone replies go
+     back through. Main table only: the ingress interface picks the routing instance,
+     and that is the one thing this form does not know.                          */
+
+  function zoneForAddress(ip, m){
+    var bits = ipBits(ip);
+    if(!bits) return null;
+    var tbl = bits.length === 128 ? "inet6.0" : "inet.0";
+    var best = -1, legs = [], own = "";
+
+    m.ifx.order.forEach(function(n){
+      m.ifx.units[n].addrs.forEach(function(a){
+        if(!own && ipBits(String(a.addr).split("/")[0]) === bits) own = n;
+      });
+    });
+
+    m.legs.forEach(function(l){
+      if(!l.active || (l.table && l.table !== tbl)) return;
+      var net = network(l.prefix);
+      if(!net || net.bits.length !== bits.length || !inNet(bits, net)) return;
+      if(net.len > best){ best = net.len; legs = [l]; }
+      else if(net.len === best) legs.push(l);
+    });
+    var sel = legs.filter(function(l){ return l.selected; });
+    if(sel.length) legs = sel;
+    return { table:tbl, own:own, prefix:legs.length ? legs[0].prefix : "", legs:legs,
+             zones: uniq(legs.map(function(l){ return l.zone; }).filter(Boolean)) };
+  }
+
+  function zoneHint(ip, sug, chosen, back){
+    if(!sug) return { cls:"", text:"" };
+    if(sug.own){
+      return { cls:"warn", text:"the firewall's own address on " + sug.own + (back
+        ? " - traffic it originates comes from junos-host, not from a zone"
+        : " - traffic to it is host-inbound, handled by host-inbound-traffic or a policy to junos-host") };
+    }
+    if(!sug.legs.length) return { cls:"", text:"no route in " + sug.table + " covers this address" };
+    var ifs = uniq(sug.legs.map(function(l){ return l.iface; }).filter(Boolean));
+    var lead = (back ? "route back: " : "route: ") + sug.prefix;
+    if(!ifs.length){
+      var l0 = sug.legs[0];
+      return { cls:"warn", text:lead + " " + (l0.kind === "unresolved" ? "next-hop " + l0.nh + " unresolved" : l0.kind) +
+        " - no egress interface, so no zone" };
+    }
+    lead += " via " + ifs.join(", ");
+    if(!sug.zones.length) return { cls:"bad", text:lead + " - in no zone" };
+    lead += " → " + sug.zones.join(", ");
+    if(chosen && sug.zones.indexOf(chosen) === -1) return { cls:"warn", text:lead + ", not " + chosen };
+    return { cls:"known", text:lead };
+  }
+
   /* ============================ CORRELATION ============================
      Routes have no zone of their own. The join is
         route -> next-hop egress interface -> zone
@@ -2190,7 +2763,8 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
 
   var state = {
     raw:"", m:EMPTY, view:"overview", filter:"", activeOnly:true, problemsOnly:false,
-    expanded:{}, openChips:{}, fileName:"", fileMode:false, built:false
+    expanded:{}, openChips:{}, fileName:"", fileMode:false, built:false,
+    flowAuto:{from:false, to:false}, flowCmd:null, flowRes:null
   };
 
   function fmtDur(sec){
@@ -3243,6 +3817,160 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     $("dgmCaption").textContent = cap;
   }
 
+  /* ============================ FLOW ============================
+     The form is static markup rather than rebuilt per render, so typing in it is
+     never interrupted by a filter change; only the zone lists, the hints, the command
+     and the reading of the answer are redrawn.                                   */
+
+  function flowForm(){
+    return { from:$("flowFrom").value, to:$("flowTo").value, src:$("flowSrc").value, dst:$("flowDst").value,
+             sport:$("flowSport").value, dport:$("flowDport").value, proto:$("flowProto").value,
+             count:$("flowCount").value };
+  }
+
+  function hasOption(sel, v){
+    for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value === v) return true; }
+    return false;
+  }
+
+  // Functional zones cannot be named in a policy, so they are not offered.
+  function fillZoneSelects(){
+    var zones = state.m.zones.filter(function(z){ return z.kind === "security"; });
+    ["flowFrom","flowTo"].forEach(function(id){
+      var sel = $(id), keep = sel.value;
+      sel.innerHTML = '<option value="">' + (zones.length ? "choose a zone" : "no security zones in the paste") + '</option>' +
+        zones.map(function(z){
+          return '<option value="' + esc(z.name) + '">' + esc(z.name) + (z.inactive ? " (inactive)" : "") + '</option>';
+        }).join("");
+      sel.value = hasOption(sel, keep) ? keep : "";
+    });
+  }
+
+  // A route suggestion fills a zone only while the engineer has not picked one. Once
+  // they have, a disagreement shows in the hint instead of overriding them.
+  function autoZone(id, key, sug){
+    var sel = $(id);
+    if(sel.value && !state.flowAuto[key]) return;
+    var z = (sug && !sug.own && sug.zones.length === 1 && hasOption(sel, sug.zones[0])) ? sug.zones[0] : "";
+    sel.value = z;
+    state.flowAuto[key] = !!z;
+  }
+
+  function setHint(id, h){ $(id).textContent = h.text; $(id).className = "hint" + (h.cls ? " " + h.cls : ""); }
+
+  function renderFlow(){
+    var m = state.m, f = flowForm();
+    var src = f.src.trim(), dst = f.dst.trim();
+    var sSug = ipBits(src) ? zoneForAddress(src, m) : null;
+    var dSug = ipBits(dst) ? zoneForAddress(dst, m) : null;
+    autoZone("flowFrom", "from", sSug);
+    autoZone("flowTo",   "to",   dSug);
+    f = flowForm();
+    setHint("flowFromHint", zoneHint(src, sSug, f.from, true));
+    setHint("flowToHint",   zoneHint(dst, dSug, f.to,   false));
+
+    var b = state.flowCmd = buildMatchCommand(f);
+    var pre = $("flowCmd");
+    if(b.cmd){ pre.textContent = b.cmd; pre.className = ""; }
+    else {
+      pre.textContent = b.missing.length ? "Still needed: " + b.missing.join(", ") : "Fix the problem below to build the command.";
+      pre.className = "pending";
+    }
+    $("flowCopy").disabled = !b.cmd;
+    var cn = b.problems.map(function(t){ return {level:"bad", text:t}; }).concat(b.cmd ? b.notes : []);
+    $("flowCmdNotes").innerHTML = cn.map(noteHTML).join("");
+    $("flowCmdNotes").classList.toggle("hidden", !cn.length);
+
+    renderFlowReport(b);
+  }
+
+  // Say what was seen, not just that nothing was found.
+  function matchMismatch(res){
+    if(res.errors.length){
+      return "The device returned an error rather than a policy: " + res.errors[0] +
+        ". Check that both zone names exist on this device and that the addresses are in one family.";
+    }
+    if(res.query){
+      return "The paste has the command line but no Policy: line after it. Copy everything the device printed, down to the next prompt.";
+    }
+    return "Read " + plural(res.lines, "non-blank line") + " and found no Policy: line. match-policies output opens each answer with a line like " +
+      "\"Policy: allow-web, action-type: permit, State: enabled\". First line seen: " + res.firstLine.slice(0, 140);
+  }
+
+  function renderFlowReport(b){
+    var text = $("flowResult").value, st = $("flowResState"), el = $("flowReport");
+    state.flowRes = null;
+    if(!text.trim()){ st.textContent = "waiting"; st.className = "state idle"; el.innerHTML = ""; return; }
+    var res = parseMatchPolicies(text);
+    if(!res.primary.length){
+      st.textContent = "nothing recognised"; st.className = "state down";
+      el.innerHTML = '<div class="notes">' + noteHTML({level:"bad", text:matchMismatch(res)}) + '</div>';
+      return;
+    }
+    var r = state.flowRes = interpretMatch(res, b.q, b.cmd, state.m, b.auto);
+    st.textContent = plural(res.primary.length, "policy", "policies") + " returned" +
+      (res.nodes.length > 1 ? " · " + res.nodes.join(", ") : "");
+    st.className = "state " + (r.verdict === "permit" ? "up" : "down");
+    el.innerHTML = flowReportHTML(r);
+  }
+
+  function hitChip(label, sub, hit, on){
+    var cls = hit === true ? on : (hit === false ? "any" : "");
+    var tip = hit === true ? "the flow falls inside this" : (hit === false ? "the flow is not inside this" : "cannot tell from this output");
+    return '<span class="pchip ' + cls + '" title="' + esc(tip) + '"><span class="dot"></span>' + esc(label) +
+      (sub ? ' <span class="sub">' + esc(sub) + '</span>' : '') + '</span>';
+  }
+
+  function flowReportHTML(r){
+    var f = r.first, q = r.q, cfg = r.cfg, sub = [], who;
+    var tunnel = f.tunnel || (cfg && cfg.tunnel) || "";
+    if(r.isDefault){
+      who = 'No policy matched &middot; default policy <b>' + esc(f.name) + '</b>';
+    } else {
+      who = 'by <b>' + esc(f.name) + '</b>' + (tunnel && f.action === "permit" ? ' into IPsec VPN <b>' + esc(tunnel) + '</b>' : '');
+    }
+    if(f.from || f.to) sub.push(f.from + " → " + f.to);
+    if(cfg && !cfg.global) sub.push("policy " + cfg.seq + " of " + r.pairTotal + " in this zone pair");
+    if(f.index) sub.push("index " + f.index);
+    if(f.node)  sub.push(f.node);
+
+    var html = '<div class="verdict ' + r.verdict + '"><span class="vword">' + esc(f.action) + '</span>' +
+      '<div><div class="vname">' + who + '</div><div class="vsub">' + esc(sub.join("  ·  ")) + '</div></div></div>';
+
+    function row(label, flow, cells){
+      return '<div class="hitrow"><span class="eyebrow">' + esc(label) + '</span><span class="fq">' + esc(flow || "-") +
+        '</span><div class="chip-row">' + (cells || '<span class="none">not in this output</span>') + '</div></div>';
+    }
+    if(r.src.length || r.dst.length || r.apps.length){
+      html += row("Source", q.src + (q.sport ? " : " + q.sport : ""),
+                  r.src.map(function(x){ return hitChip(x.e.name, x.e.addr, x.hit, "addr"); }).join("")) +
+              row("Destination", q.dst + (q.dport ? " : " + q.dport : ""),
+                  r.dst.map(function(x){ return hitChip(x.e.name, x.e.addr, x.hit, "addr"); }).join("")) +
+              row("Application", q.proto,
+                  r.apps.map(function(x){ return hitChip(x.a.name, appLabel(x.a), x.hit, "app"); }).join(""));
+    }
+
+    if(cfg){
+      html += '<div class="attrs"><span class="eyebrow">In the configuration</span>' +
+        '<span class="attr">source <b>' + esc(cfg.src.join(", ") || "not set") + '</b></span>' +
+        '<span class="attr">destination <b>' + esc(cfg.dst.join(", ") || "not set") + '</b></span>' +
+        '<span class="attr">application <b>' + esc(cfg.app.join(", ") || "not set") + '</b></span>' +
+        '<span class="attr">then <b>' + esc((cfg.action || "no action") + (cfg.tunnel ? " tunnel " + cfg.tunnel : "") +
+          (cfg.log.length ? " +log" : "") + (cfg.count ? " +count" : "")) + '</b></span></div>';
+    }
+
+    if(r.later.length){
+      html += '<div class="routebox"><span class="eyebrow">Also matches - never reached for this flow</span><div class="rlist">' +
+        r.later.map(function(b){
+          return '<div class="r"><span class="p">' + esc(b.name) + '</span><span class="pr">' + esc(b.action) + '</span>' +
+            '<span class="nh">' + esc([b.from, b.to].filter(Boolean).join(" → ") + (b.seq ? "  ·  sequence " + b.seq : "")) + '</span></div>';
+        }).join("") + '</div></div>';
+    }
+
+    if(r.notes.length) html += '<div class="notes">' + r.notes.map(noteHTML).join("") + '</div>';
+    return html;
+  }
+
   /* ============================ RENDER DISPATCH ============================ */
 
   function render(){
@@ -3255,6 +3983,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     $("cards").classList.toggle("hidden", !cardView);
     $("tableWrap").classList.toggle("on", tableView);
     $("diagramWrap").classList.toggle("on", v === "diagram");
+    $("flow").classList.toggle("on", v === "flow");
 
     if(v === "overview")      renderOverview();
     else if(v === "ifaces")   renderIfaceTable();
@@ -3263,12 +3992,13 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     else if(v === "diagram")  renderDiagram();
     else if(v === "policies") renderPolicyTable();
     else if(v === "vpn")      renderVpnCards();
+    else if(v === "flow")     renderFlow();
   }
 
   function setView(v){
     state.view = v;
     var ids = { overview:"viewOverview", ifaces:"viewIfaces", zones:"viewZones", routes:"viewRoutes",
-                diagram:"viewDiagram", policies:"viewPolicies", vpn:"viewVpn" };
+                diagram:"viewDiagram", policies:"viewPolicies", vpn:"viewVpn", flow:"viewFlow" };
     for(var k in ids){
       if(ids.hasOwnProperty(k)) $(ids[k]).setAttribute("aria-pressed", String(k === v));
     }
@@ -3289,7 +4019,11 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
                   "IKE mode","IKE proposals","IPsec policy","PFS","IPsec proposals",
                   "Proxy local","Proxy remote","IPsec SA","IKE state","IKE exchange","IKE algorithms"];
 
+  var FLOW_COLS = ["#","Policy","From zone","To zone","Action","Index","Sequence",
+                   "Source addresses","Destination addresses","Applications","Result"];
+
   function exportCols(){
+    if(state.view === "flow")     return FLOW_COLS;
     if(state.view === "ifaces")   return IF_COLS;
     if(state.view === "policies") return POL_COLS;
     if(state.view === "vpn")      return VPN_COLS;
@@ -3297,6 +4031,17 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
   }
 
   function exportRows(){
+    if(state.view === "flow"){
+      var r = state.flowRes;
+      if(!r || !r.first) return [];
+      var ent = function(e){ return e.name + (e.addr ? " " + e.addr : ""); };
+      return [r.first].concat(r.later).map(function(b, i){
+        return [ String(i+1), b.name, b.from, b.to, b.action, b.index, b.seq,
+                 b.src.map(ent).join(", "), b.dst.map(ent).join(", "),
+                 b.apps.map(function(a){ var l = appLabel(a); return a.name + (l ? " (" + l + ")" : ""); }).join(", "),
+                 i === 0 ? (r.isDefault ? "default policy" : "matched") : "never reached" ];
+      });
+    }
     if(state.view === "ifaces") return ifaceRows();
     if(state.view === "policies"){
       return visiblePolicies().map(function(p){
@@ -3339,7 +4084,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     return h ? h + "-" : "";
   }
   function exportName(){
-    var base = { ifaces:"interfaces", policies:"security-policies", vpn:"ipsec-vpns" }[state.view] || "routes-by-zone";
+    var base = { ifaces:"interfaces", policies:"security-policies", vpn:"ipsec-vpns", flow:"flow-match" }[state.view] || "routes-by-zone";
     return hostSlug() + base;
   }
 
@@ -3348,9 +4093,22 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     return [exportCols().map(qt).join(",")]
       .concat(exportRows().map(function(r){ return r.map(qt).join(","); })).join("\n");
   }
+  // The flow view's answer is a sentence before it is a table.
+  function flowMarkdownHead(){
+    var b = state.flowCmd, r = state.flowRes, out = [];
+    var cmd = (r && r.cmdLine) || (b && b.cmd) || "";
+    if(cmd) out.push("Flow: `" + cmd + "`", "");
+    if(r && r.first){
+      out.push("**" + r.first.action + "** " + (r.isDefault ? "- no policy matched, default policy " : "by ") + r.first.name, "");
+      r.notes.forEach(function(n){ out.push("- " + (n.level === "info" ? "" : "**" + n.level + "** ") + n.text); });
+      if(r.notes.length) out.push("");
+    }
+    return out.length ? out.join("\n") + "\n" : "";
+  }
+
   function toMarkdown(){
     var cols = exportCols();
-    return ["| " + cols.join(" | ") + " |", "|" + cols.map(function(){ return "---"; }).join("|") + "|"]
+    return (state.view === "flow" ? flowMarkdownHead() : "") + ["| " + cols.join(" | ") + " |", "|" + cols.map(function(){ return "---"; }).join("|") + "|"]
       .concat(exportRows().map(function(r){
         return "| " + r.map(function(c){ return String(c || "-").replace(/\|/g,"\\|"); }).join(" | ") + " |";
       })).join("\n");
@@ -3380,6 +4138,12 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     document.body.appendChild(ta); ta.select();
     try{ document.execCommand("copy"); }catch(e){}
     document.body.removeChild(ta);
+  }
+  function copyText(text, btn){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ flash(btn, "Copied"); },
+        function(){ fallbackCopy(text); flash(btn, "Copied"); });
+    } else { fallbackCopy(text); flash(btn, "Copied"); }
   }
 
   /* ============================ FAILURE MESSAGES ============================ */
@@ -3480,6 +4244,8 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
                 m.policies.length + m.vpns.length + m.sas.length + m.ikes.length;
     state.built = found > 0;
     updatePaneStates(m, extra);
+    fillZoneSelects();
+    renderFlow();
 
     var bits = [];
     if(m.ifx.order.length) bits.push(plural(m.ifx.order.length, "interface"));
@@ -3497,6 +4263,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
       $("cards").classList.add("hidden");
       $("tableWrap").classList.remove("on");
       $("diagramWrap").classList.remove("on");
+      $("flow").classList.remove("on");
       var anyInput = (text + extra.routes + extra.sas + extra.ike).trim();
       showMsg(anyInput ? "Nothing recognised" : "Nothing to parse", nothingReport(text, m));
       return;
@@ -3526,6 +4293,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
           return;
         }
         $(target).value = t;
+        if(target === "flowResult"){ renderFlow(); return; }
         setOpt(true);
         doParse();
         return;
@@ -3577,6 +4345,12 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     $("cards").classList.add("hidden");
     $("tableWrap").classList.remove("on");
     $("diagramWrap").classList.remove("on");
+    $("flow").classList.remove("on");
+    ["flowSrc","flowDst","flowSport","flowDport","flowCount","flowResult"].forEach(function(id){ $(id).value = ""; });
+    $("flowProto").value = "tcp";
+    state.flowAuto = {from:false, to:false};
+    fillZoneSelects();
+    renderFlow();
     $("summary").classList.remove("on");
     $("toolbar").classList.remove("on");
     $("inputState").textContent = "not parsed";
@@ -3596,6 +4370,13 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
     $("rawSAs").value    = SAMPLE_SAS;
     $("rawIKE").value    = SAMPLE_IKE;
     $("fileNote").classList.add("hidden");
+    // The zones are left for the route lookup to fill, which is half of what the view shows.
+    $("flowFrom").value = ""; $("flowTo").value = "";
+    state.flowAuto = {from:false, to:false};
+    $("flowSrc").value = "10.1.0.25"; $("flowDst").value = "192.0.2.80";
+    $("flowProto").value = "tcp"; $("flowSport").value = ""; $("flowDport").value = "443";
+    $("flowCount").value = "2";
+    $("flowResult").value = SAMPLE_MATCH;
     setOpt(true);
     doParse();
   });
@@ -3644,6 +4425,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
   $("viewDiagram").addEventListener("click",  function(){ setView("diagram"); });
   $("viewPolicies").addEventListener("click", function(){ setView("policies"); });
   $("viewVpn").addEventListener("click",      function(){ setView("vpn"); });
+  $("viewFlow").addEventListener("click",     function(){ setView("flow"); });
 
   $("svgBtn").addEventListener("click", function(){
     var host = $("diagram");
@@ -3661,11 +4443,16 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
   });
   $("mdBtn").addEventListener("click", function(e){
     if(!state.built){ showMsg("Nothing to copy", "Build the report first."); return; }
-    var btn = e.currentTarget, md = toMarkdown();
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(md).then(function(){ flash(btn, "Copied"); },
-        function(){ fallbackCopy(md); flash(btn, "Copied"); });
-    } else { fallbackCopy(md); flash(btn, "Copied"); }
+    copyText(toMarkdown(), e.currentTarget);
+  });
+
+  ["flowSrc","flowDst","flowSport","flowDport","flowProto","flowCount","flowResult"].forEach(function(id){
+    $(id).addEventListener("input", renderFlow);
+  });
+  $("flowFrom").addEventListener("change", function(){ state.flowAuto.from = false; renderFlow(); });
+  $("flowTo").addEventListener("change",   function(){ state.flowAuto.to   = false; renderFlow(); });
+  $("flowCopy").addEventListener("click", function(e){
+    if(state.flowCmd && state.flowCmd.cmd) copyText(state.flowCmd.cmd, e.currentTarget);
   });
 
   /* ============================ EXPOSED FOR TESTS ============================ */
@@ -3682,6 +4469,9 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
   window.__parseVpns        = function(t){ return buildVpnCards(vpnsFromFlat(flatten(t))); };
   window.__diagramItems     = diagramItems;
   window.__network          = network;
+  window.__parseMatchPolicies = parseMatchPolicies;
+  window.__buildMatchCommand  = buildMatchCommand;
+  window.__zoneForAddress     = function(ip){ return zoneForAddress(ip, state.m); };
 
   /* ============================ SAMPLE ============================ */
 
@@ -4077,6 +4867,59 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
 "   Diffie-Hellman group  : DH-group-2",
 "  IPSec security associations: 0 created, 0 deleted",
 "  Phase 2 negotiations in progress: 0"
+].join("\n");
+
+  var SAMPLE_MATCH = [
+"admin@edge-srx-01> show security match-policies from-zone trust to-zone untrust source-ip 10.1.0.25 destination-ip 192.0.2.80 source-port 1024 destination-port 443 protocol tcp result-count 2",
+"node0:",
+"--------------------------------------------------------------------------",
+"Policy: allow-web, action-type: permit, State: enabled, Index: 4, Scope Policy: 0",
+"  Policy Type: Configured",
+"  Sequence number: 1",
+"  From zone: trust, To zone: untrust",
+"  Source vrf group:",
+"    any",
+"  Destination vrf group:",
+"    any",
+"  Source addresses:",
+"    voice-vlan: 10.1.100.0/24",
+"    10.1.0.0/24: 10.1.0.0/24",
+"  Destination addresses:",
+"    any-ipv4(global): 0.0.0.0/0",
+"    any-ipv6(global): ::/0",
+"  Application: junos-http",
+"    IP protocol: tcp, ALG: 0, Inactivity timeout: 1800",
+"      Source port range: [0-0]",
+"      Destination port range: [80-80]",
+"  Application: junos-https",
+"    IP protocol: tcp, ALG: 0, Inactivity timeout: 1800",
+"      Source port range: [0-0]",
+"      Destination port range: [443-443]",
+"  Application: app-mgmt-8443",
+"    IP protocol: tcp, ALG: 0, Inactivity timeout: 1800",
+"      Source port range: [0-0]",
+"      Destination port range: [8443-8443]",
+"  Source identity feeds:",
+"    any",
+"  Destination identity feeds:",
+"    any",
+"  Per policy TCP Options: SYN check: No, SEQ check: No, Window scale: No",
+"",
+"Policy: allow-all-out, action-type: permit, State: enabled, Index: 5, Scope Policy: 0",
+"  Policy Type: Configured",
+"  Sequence number: 2",
+"  From zone: trust, To zone: untrust",
+"  Source addresses:",
+"    any-ipv4(global): 0.0.0.0/0",
+"    any-ipv6(global): ::/0",
+"  Destination addresses:",
+"    any-ipv4(global): 0.0.0.0/0",
+"    any-ipv6(global): ::/0",
+"  Application: any",
+"    IP protocol: 0, ALG: 0, Inactivity timeout: 0",
+"      Source port range: [0-0]",
+"      Destination port range: [0-0]",
+"  Per policy TCP Options: SYN check: No, SEQ check: No, Window scale: No"
 ].join("\n");
 
 })();

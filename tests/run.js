@@ -1084,7 +1084,7 @@ describe("junos-config-report / DOM", () => {
   });
 
   it("exports every view without throwing", () => {
-    for(const v of ["viewOverview","viewIfaces","viewZones","viewRoutes","viewDiagram","viewPolicies","viewVpn"]){
+    for(const v of ["viewOverview","viewIfaces","viewZones","viewRoutes","viewDiagram","viewPolicies","viewVpn","viewFlow"]){
       $(v).click();
       $("csvBtn").click();
       $("mdBtn").click();
@@ -1112,6 +1112,501 @@ describe("junos-config-report / DOM", () => {
     ok(!$("summary").classList.contains("on"));
     ok(!$("toolbar").classList.contains("on"));
     eq(t.text("cards"), "");
+    eq(t.errors, []);
+  });
+});
+
+/* ------------------------------------------------------------------- flow -- */
+
+const FLOW_CFG = `
+system { host-name fw1; }
+interfaces {
+    reth0 { unit 0 { family inet { address 10.1.0.1/24; } } }
+    reth1 { unit 0 { family inet { address 203.0.113.10/24; } } }
+    reth3 { unit 0 { family inet6 { address 2001:db8:1::1/64; } } }
+    st0 { unit 0 { family inet; } }
+}
+routing-options {
+    static {
+        route 0.0.0.0/0 next-hop 203.0.113.254;
+        route 10.20.0.0/16 next-hop 10.1.0.9;
+        route 172.16.8.0/22 next-hop st0.0;
+    }
+}
+security {
+    ike { gateway gw { ike-policy p; address 198.51.100.77; external-interface reth1.0; } }
+    ipsec { vpn half-open { bind-interface st0.0; ike { gateway gw; } } }
+    zones {
+        security-zone trust { interfaces { reth0.0; } }
+        security-zone untrust { interfaces { reth1.0; } }
+        security-zone vpn { interfaces { st0.0; } }
+        security-zone dmz;
+        functional-zone management { interfaces { fxp0.0; } }
+    }
+    policies {
+        from-zone trust to-zone untrust {
+            policy block-ftp {
+                match { source-address any; destination-address any; application junos-ftp; }
+                then { deny; }
+            }
+            policy allow-web {
+                match { source-address any; destination-address any; application junos-https; }
+                then { permit; }
+            }
+        }
+        from-zone trust to-zone vpn {
+            policy to-branch {
+                match { source-address any; destination-address any; application any; }
+                then { permit { tunnel { ipsec-vpn half-open; } } }
+            }
+        }
+        default-policy { deny-all; }
+    }
+}`;
+
+// One match-policies answer block, in the layout the device prints.
+function mpBlock(o){
+  const out = [
+    `Policy: ${o.name}, action-type: ${o.action || "permit"}, State: ${o.state || "enabled"}, Index: ${o.index || 4}, Scope Policy: 0`,
+    `  Policy Type: ${o.type || "Configured"}`,
+    `  Sequence number: ${o.seq || 1}`,
+    `  From zone: ${o.from || "trust"}, To zone: ${o.to || "untrust"}`,
+    "  Source addresses:"
+  ];
+  (o.src || ["any-ipv4(global): 0.0.0.0/0"]).forEach(s => out.push("    " + s));
+  out.push("  Destination addresses:");
+  (o.dst || ["any-ipv4(global): 0.0.0.0/0"]).forEach(s => out.push("    " + s));
+  (o.apps || [["junos-https", "tcp", "443-443"]]).forEach(a => {
+    out.push(`  Application: ${a[0]}`,
+             `    IP protocol: ${a[1]}, ALG: 0, Inactivity timeout: 1800`,
+             "      Source port range: [0-0]",
+             `      Destination port range: [${a[2]}]`);
+  });
+  out.push("  Per policy TCP Options: SYN check: No, SEQ check: No, Window scale: No");
+  return out.join("\n");
+}
+
+const MP_CMD = "show security match-policies from-zone trust to-zone untrust source-ip 10.1.0.25 " +
+               "destination-ip 192.0.2.80 source-port 1024 destination-port 443 protocol tcp";
+const MP_PROMPT = "admin@fw1> " + MP_CMD;
+
+// Parse a config, open the Flow view and fill the form. Zones are left for the route
+// lookup unless given.
+function flowPage(cfg, form, extra){
+  const t = load("junos-config-report.html");
+  t.$("raw").value = cfg;
+  if(extra && extra.sas) t.$("rawSAs").value = extra.sas;
+  t.$("parseBtn").click();
+  t.$("viewFlow").click();
+  setFlow(t, Object.assign({ src:"10.1.0.25", dst:"192.0.2.80", proto:"tcp", sport:"", dport:"443" }, form || {}));
+  return t;
+}
+function setFlow(t, f){
+  const ids = { src:"flowSrc", dst:"flowDst", sport:"flowSport", dport:"flowDport", proto:"flowProto", count:"flowCount", result:"flowResult" };
+  for(const k of Object.keys(ids)){
+    if(f[k] === undefined) continue;
+    t.$(ids[k]).value = f[k];
+    t.$(ids[k]).dispatchEvent(new t.window.Event("input"));
+  }
+  for(const [k, id] of [["from","flowFrom"], ["to","flowTo"]]){
+    if(f[k] === undefined) continue;
+    t.$(id).value = f[k];
+    t.$(id).dispatchEvent(new t.window.Event("change"));
+  }
+}
+const flowNotes = t => [...t.$("flowReport").querySelectorAll(".note")].map(n => ({
+  level: ["bad","warn","info"].filter(l => n.classList.contains(l))[0] || "", text: n.textContent }));
+function hasNote(t, level, re){
+  const ns = flowNotes(t);
+  ok(ns.some(n => n.level === level && re.test(n.text)),
+     `expected a ${level} note matching ${re}, got: ${JSON.stringify(ns)}`);
+}
+
+describe("junos-config-report / match-policies parser", () => {
+  const t = load("junos-config-report.html");
+  const P = t.window.__parseMatchPolicies;
+  const text = [MP_PROMPT + " result-count 2 | no-more", "node0:", "-----",
+    mpBlock({ name:"allow-web", index:4, seq:1,
+              src:["voice-vlan: 10.1.100.0/24", "10.1.0.0/24: 10.1.0.0/24"],
+              dst:["any-ipv4(global): 0.0.0.0/0", "any-ipv6(global): ::/0"],
+              apps:[["junos-http","tcp","80-80"], ["junos-https","tcp","443-443"]] }).replace(
+      "  Source addresses:", "  Source vrf group:\n    any\n  Source addresses:"),
+    "",
+    mpBlock({ name:"allow-all-out", seq:2, index:5, apps:[["any","0","0-0"]] })].join("\n");
+  const r = P(text);
+
+  it("reads the command line out of the paste and drops a trailing pipe", () => {
+    eq(r.query["from-zone"], "trust");
+    eq(r.query["destination-ip"], "192.0.2.80");
+    eq(r.query["result-count"], "2");
+    ok(!/no-more|\|/.test(r.cmdLine), `the pipe must not survive: ${r.cmdLine}`);
+    ok(/^show security match-policies from-zone trust/.test(r.cmdLine));
+  });
+
+  it("reads each policy block with its header fields", () => {
+    eq(r.blocks.length, 2);
+    const b = r.blocks[0];
+    eq([b.name, b.action, b.state, b.index, b.seq, b.from, b.to, b.node, b.type],
+       ["allow-web", "permit", "enabled", "4", "1", "trust", "untrust", "node0", "Configured"]);
+  });
+
+  it("reads address entries, splitting off the address-book name", () => {
+    const b = r.blocks[0];
+    eq(b.src.map(e => e.name), ["voice-vlan", "10.1.0.0/24"], "the vrf group 'any' is not a source address");
+    eq(b.dst[0], { name:"any-ipv4", book:"global", addr:"0.0.0.0/0" });
+  });
+
+  it("reads applications and their port ranges", () => {
+    const a = r.blocks[0].apps;
+    eq(a.map(x => x.name), ["junos-http", "junos-https"]);
+    eq(a[1].terms[0].protocol, "tcp");
+    eq(a[1].terms[0].dport, [[443, 443]]);
+    eq(a[1].terms[0].sport, [[0, 0]]);
+  });
+
+  it("keeps a multi-term application as separate terms", () => {
+    const x = P(mpBlock({ name:"p" }).replace("  Per policy",
+      "  Application: dns-both\n    IP protocol: udp, ALG: 0, Inactivity timeout: 60\n      Destination port range: [53-53]\n" +
+      "    IP protocol: tcp, ALG: 0, Inactivity timeout: 1800\n      Destination port range: [53-53]\n  Per policy"));
+    const app = x.blocks[0].apps.filter(a => a.name === "dns-both")[0];
+    eq(app.terms.map(tm => tm.protocol), ["udp", "tcp"]);
+  });
+
+  it("reads ICMP information on an application", () => {
+    const x = P(mpBlock({ name:"p", apps:[] }).replace("  Per policy",
+      "  Application: junos-icmp-ping\n    IP protocol: icmp, ALG: 0, Inactivity timeout: 60\n      ICMP Information: type=8, code=0\n  Per policy"));
+    eq(x.blocks[0].apps[0].terms[0].icmp, "type=8, code=0");
+  });
+
+  it("treats the first node's answer as the answer on a cluster", () => {
+    const x = P(["node0:", "----", mpBlock({ name:"a" }), "", "node1:", "----", mpBlock({ name:"b" })].join("\n"));
+    eq(x.nodes, ["node0", "node1"]);
+    eq(x.blocks.length, 2);
+    eq(x.primary.map(b => b.name), ["a"], "node1 is checked against node0, not appended to it");
+  });
+
+  it("collects error lines rather than reading them as policy", () => {
+    const x = P(MP_PROMPT + "\nerror: Security zone 'untrsut' not found");
+    eq(x.primary.length, 0);
+    eq(x.errors, ["error: Security zone 'untrsut' not found"]);
+    ok(x.query, "the command line is still read");
+  });
+
+  it("returns an empty result for garbage and for nothing", () => {
+    const x = P("}}}}\nthis is not match-policies output");
+    eq(x.blocks.length, 0);
+    eq(x.lines, 2);
+    eq(x.firstLine, "}}}}");
+    eq(P("").blocks.length, 0);
+    eq(P(null).blocks.length, 0);
+  });
+});
+
+describe("junos-config-report / match-policies command", () => {
+  const t = load("junos-config-report.html");
+  const B = t.window.__buildMatchCommand;
+  const full = { from:"trust", to:"untrust", src:"10.1.0.25", dst:"192.0.2.80", sport:"1024", dport:"443", proto:"tcp" };
+
+  it("writes the command from a complete form", () => {
+    const b = B(full);
+    eq(b.cmd, MP_CMD);
+    eq(b.missing, []);
+    eq(b.problems, []);
+    eq(B(Object.assign({}, full, { count:"4" })).cmd, MP_CMD + " result-count 4");
+  });
+
+  it("names what is missing and writes no command", () => {
+    const b = B({ proto:"tcp" });
+    eq(b.cmd, "");
+    eq(b.missing, ["from-zone", "to-zone", "source-ip", "destination-ip", "destination-port"]);
+  });
+
+  it("refuses a prefix, since the command tests one flow", () => {
+    const b = B(Object.assign({}, full, { dst:"192.0.2.0/24" }));
+    eq(b.cmd, "");
+    ok(b.problems.some(p => /is a prefix/.test(p)), JSON.stringify(b.problems));
+  });
+
+  it("refuses a malformed address and mixed address families", () => {
+    ok(B(Object.assign({}, full, { src:"10.1.0.256" })).problems.some(p => /not an IPv4 or IPv6 address/.test(p)));
+    ok(B(Object.assign({}, full, { dst:"2001:db8::1" })).problems.some(p => /different address families/.test(p)));
+    eq(B(Object.assign({}, full, { src:"2001:db8:1::5", dst:"2001:db8::1" })).problems, [], "IPv6 on both sides is fine");
+  });
+
+  it("checks port and result-count ranges", () => {
+    ok(B(Object.assign({}, full, { dport:"70000" })).problems.some(p => /destination-port 70000/.test(p)));
+    ok(B(Object.assign({}, full, { sport:"0" })).problems.some(p => /source-port 0/.test(p)));
+    ok(B(Object.assign({}, full, { count:"17" })).problems.some(p => /1 to 16/.test(p)));
+    eq(B(Object.assign({}, full, { count:"16" })).problems, []);
+  });
+
+  it("fills a source port of 1024 for tcp and says so", () => {
+    const b = B(Object.assign({}, full, { sport:"" }));
+    ok(/source-port 1024 /.test(b.cmd));
+    eq(b.auto, { sport:true });
+    ok(b.notes.some(n => n.level === "info" && /1024/.test(n.text)));
+  });
+
+  it("uses placeholder ports for a protocol without ports", () => {
+    const b = B(Object.assign({}, full, { proto:"ICMP", sport:"", dport:"" }));
+    ok(/source-port 1 destination-port 1 protocol icmp$/.test(b.cmd), b.cmd);
+    eq(b.auto, { sport:true, dport:true });
+    ok(b.notes.some(n => /placeholder/.test(n.text)));
+  });
+
+  it("accepts a protocol number and refuses an unknown name", () => {
+    ok(/protocol 50$/.test(B(Object.assign({}, full, { proto:"50", sport:"", dport:"" })).cmd));
+    ok(B(Object.assign({}, full, { proto:"quic" })).problems.some(p => /not one this page knows/.test(p)));
+    ok(B(Object.assign({}, full, { proto:"300" })).problems.length > 0, "a protocol number above 255 is refused");
+  });
+});
+
+describe("junos-config-report / flow zone lookup", () => {
+  const t = flowPage(FLOW_CFG, {});
+  const Z = t.window.__zoneForAddress;
+
+  it("finds the zone of a directly connected address", () => {
+    const s = Z("10.1.0.25");
+    eq(s.prefix, "10.1.0.0/24");
+    eq(s.zones, ["trust"]);
+    eq(s.table, "inet.0");
+  });
+
+  it("takes the longest match over the default route", () => {
+    eq(Z("10.20.5.5").prefix, "10.20.0.0/16");
+    eq(Z("10.20.5.5").zones, ["trust"]);
+    eq(Z("192.0.2.80").prefix, "0.0.0.0/0");
+    eq(Z("192.0.2.80").zones, ["untrust"]);
+    eq(Z("172.16.9.1").zones, ["vpn"]);
+  });
+
+  it("recognises the firewall's own address", () => {
+    eq(Z("203.0.113.10").own, "reth1.0");
+  });
+
+  it("looks in inet6.0 for an IPv6 address and admits when nothing covers it", () => {
+    eq(Z("2001:db8:1::5").table, "inet6.0");
+    eq(Z("2001:db8:1::5").zones, [], "reth3.0 is in no zone");
+    eq(Z("2001:db8:ffff::1").legs, []);
+  });
+
+  it("returns null for something that is not an address", () => {
+    eq(Z("not-an-ip"), null);
+  });
+});
+
+describe("junos-config-report / flow view", () => {
+  it("builds the sample question and reads the sample answer", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewFlow").click();
+    eq(t.errors, []);
+    ok(t.$("flow").classList.contains("on"));
+    eq(t.$("viewFlow").getAttribute("aria-pressed"), "true");
+    eq([t.$("flowFrom").value, t.$("flowTo").value], ["trust", "untrust"], "the zones come from the route lookup");
+    ok(t.$("flowFromHint").classList.contains("known"));
+    includes(t.text("flowToHint"), "0.0.0.0/0 via reth1.0");
+    includes(t.text("flowCmd"), "result-count 2");
+    ok(!t.$("flowCopy").disabled);
+    eq(t.text("flowResState"), "2 policies returned");
+    ok(t.$("flowReport").querySelector(".verdict.permit"), "the device said permit");
+    includes(t.text("flowReport"), "allow-web");
+    includes(t.text("flowReport"), "policy 1 of 3 in this zone pair");
+    includes(t.text("flowReport"), "Also matches");
+    includes(t.text("flowReport"), "allow-all-out");
+  });
+
+  it("marks which listed entry the flow fell inside", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewFlow").click();
+    const chips = [...t.$("flowReport").querySelectorAll(".pchip")];
+    const chip = s => chips.filter(c => c.textContent.indexOf(s) === 0)[0];
+    ok(chip("10.1.0.0/24").classList.contains("addr"), "10.1.0.25 is inside 10.1.0.0/24");
+    ok(chip("voice-vlan").classList.contains("any"), "10.1.0.25 is not inside the voice VLAN");
+    ok(chip("junos-https").classList.contains("app"));
+    ok(chip("junos-http ").classList.contains("any"), "port 80 does not cover a flow to 443");
+  });
+
+  it("offers only security zones, never functional ones", () => {
+    const t = flowPage(FLOW_CFG, {});
+    const opts = [...t.$("flowFrom").options].map(o => o.value).filter(Boolean);
+    eq(opts, ["trust", "untrust", "vpn", "dmz"]);
+  });
+
+  it("says what is still needed and disables copy until the form is complete", () => {
+    const t = flowPage(FLOW_CFG, { dst:"", dport:"" });
+    ok(t.$("flowCmd").classList.contains("pending"));
+    includes(t.text("flowCmd"), "Still needed: to-zone, destination-ip, destination-port");
+    ok(t.$("flowCopy").disabled);
+    // A prefix resolves to no zone, so pick one to leave the prefix as the only fault.
+    setFlow(t, { dst:"192.0.2.0/24", dport:"443", to:"untrust" });
+    includes(t.text("flowCmd"), "Fix the problem");
+    includes(t.text("flowCmdNotes"), "is a prefix");
+  });
+
+  it("does not override a zone the engineer picked, and says where the route goes", () => {
+    const t = flowPage(FLOW_CFG, {});
+    eq(t.$("flowTo").value, "untrust");
+    setFlow(t, { to:"dmz" });
+    setFlow(t, { dst:"192.0.2.81" });
+    eq(t.$("flowTo").value, "dmz", "a chosen zone must survive further typing");
+    ok(t.$("flowToHint").classList.contains("warn"));
+    includes(t.text("flowToHint"), "untrust, not dmz");
+  });
+
+  it("flags the firewall's own address rather than giving it a zone", () => {
+    const t = flowPage(FLOW_CFG, { dst:"203.0.113.10" });
+    eq(t.$("flowTo").value, "");
+    includes(t.text("flowToHint"), "own address on reth1.0");
+    includes(t.text("flowToHint"), "host-inbound");
+  });
+
+  it("reads a paste for a different flow as the answer to its own command", () => {
+    const t = flowPage(FLOW_CFG, { result: MP_PROMPT.replace("192.0.2.80", "192.0.2.99") + "\n" + mpBlock({ name:"allow-web", seq:2 }) });
+    hasNote(t, "warn", /different flow than the form: destination-ip 192\.0\.2\.99 \(form: 192\.0\.2\.80\)/);
+    includes(t.text("flowReport"), "192.0.2.99", "the flow shown is the pasted one");
+  });
+
+  it("does not count the page's own placeholder port as a disagreement", () => {
+    const t = flowPage(FLOW_CFG, { result: MP_PROMPT.replace("source-port 1024", "source-port 5000") + "\n" + mpBlock({ name:"allow-web", seq:2 }) });
+    ok(!flowNotes(t).some(n => /different flow/.test(n.text)), JSON.stringify(flowNotes(t)));
+  });
+
+  it("says when the paste has no command line", () => {
+    const t = flowPage(FLOW_CFG, { result: mpBlock({ name:"allow-web", seq:2 }) });
+    hasNote(t, "info", /No command line in the paste/);
+  });
+
+  it("warns when none of the listed entries hold the flow", () => {
+    const t = flowPage(FLOW_CFG, { result: MP_PROMPT + "\n" +
+      mpBlock({ name:"allow-web", seq:2, src:["lab: 10.9.0.0/16"], apps:[["junos-ssh","tcp","22-22"]] }) });
+    hasNote(t, "warn", /None of the source addresses .* contain 10\.1\.0\.25/);
+    hasNote(t, "warn", /None of the applications .* cover tcp\/443/);
+  });
+
+  it("flags a matched policy missing from the configuration", () => {
+    const t = flowPage(FLOW_CFG, { result: MP_PROMPT + "\n" + mpBlock({ name:"legacy-any" }) });
+    hasNote(t, "warn", /legacy-any \(trust to untrust\) is not in the configuration paste/);
+  });
+
+  it("flags a device action that disagrees with the configuration", () => {
+    const t = flowPage(FLOW_CFG, { result: MP_PROMPT + "\n" + mpBlock({ name:"allow-web", action:"deny", seq:2 }) });
+    hasNote(t, "bad", /matched allow-web with action deny, but the configuration paste says permit/);
+    ok(t.$("flowReport").querySelector(".verdict.deny"), "the verdict is the device's, not the config's");
+  });
+
+  it("says when a deny comes ahead of a permit that would have passed the flow", () => {
+    const t = flowPage(FLOW_CFG, { count:"2", result: MP_PROMPT + " result-count 2\n" +
+      mpBlock({ name:"block-ftp", action:"deny", seq:1 }) + "\n\n" + mpBlock({ name:"allow-web", seq:2 }) });
+    hasNote(t, "warn", /allow-web would also permit this flow but comes after block-ftp/);
+  });
+
+  it("explains a default-policy match from the zone pair's policies", () => {
+    const t = flowPage(FLOW_CFG, { to:"dmz", result: MP_PROMPT.replace("untrust", "dmz") + "\n" +
+      mpBlock({ name:"default-policy", action:"deny", type:"Default", from:"trust", to:"dmz", seq:0 }) });
+    ok(t.$("flowReport").querySelector(".verdict.deny"));
+    includes(t.text("flowReport"), "No policy matched");
+    hasNote(t, "info", /no policy from trust to dmz at all/);
+    ok(!flowNotes(t).some(n => /None of the/.test(n.text)), "a default match lists no entries to miss");
+  });
+
+  it("flags a default action that contradicts the configured default-policy", () => {
+    const t = flowPage(FLOW_CFG, { to:"dmz", result: MP_PROMPT.replace("untrust", "dmz") + "\n" +
+      mpBlock({ name:"default-policy", action:"permit", type:"Default", from:"trust", to:"dmz", seq:0 }) });
+    hasNote(t, "bad", /default permit, but the configuration paste says default-policy deny-all/);
+  });
+
+  it("warns when the returned policy is for another zone pair", () => {
+    const t = flowPage(FLOW_CFG, { result: MP_PROMPT + "\n" + mpBlock({ name:"to-branch", from:"trust", to:"vpn" }) });
+    hasNote(t, "warn", /Asked about trust to untrust, but the policy returned is from trust to vpn/);
+  });
+
+  it("flags a permit into a tunnel whose SA is not up", () => {
+    // OPER_SA holds VPN half-open with its outbound SA not installed.
+    const t = flowPage(FLOW_CFG, { dst:"172.16.9.1", result:
+      MP_PROMPT.replace("untrust", "vpn").replace("192.0.2.80", "172.16.9.1") + "\n" +
+      mpBlock({ name:"to-branch", to:"vpn" }) }, { sas: OPER_SA });
+    eq(t.$("flowTo").value, "vpn");
+    includes(t.text("flowReport"), "into IPsec VPN half-open");
+    hasNote(t, "bad", /Permitted into IPsec VPN half-open, whose SA is .* not up/);
+  });
+
+  it("flags cluster nodes that disagree", () => {
+    const t = flowPage(FLOW_CFG, { result: [MP_PROMPT, "node0:", "----", mpBlock({ name:"allow-web", seq:2 }),
+      "", "node1:", "----", mpBlock({ name:"block-ftp", action:"deny" })].join("\n") });
+    includes(t.text("flowResState"), "node0, node1");
+    hasNote(t, "bad", /node1 answered block-ftp \(deny\) where node0 answered allow-web \(permit\)/);
+  });
+
+  it("reports what it saw when the answer is an error or not match-policies at all", () => {
+    const t = flowPage(FLOW_CFG, { result: MP_PROMPT + "\nerror: Security zone 'untrsut' not found" });
+    eq(t.text("flowResState"), "nothing recognised");
+    includes(t.text("flowReport"), "returned an error rather than a policy");
+    includes(t.text("flowReport"), "untrsut");
+    setFlow(t, { result: "Session ID: 12345, Policy name: allow-web/4, Timeout: 1800" });
+    includes(t.text("flowReport"), "found no Policy: line");
+    includes(t.text("flowReport"), "First line seen: Session ID: 12345");
+    setFlow(t, { result: "" });
+    eq(t.text("flowResState"), "waiting");
+    eq(t.text("flowReport"), "");
+  });
+
+  it("escapes everything it reads out of the paste", () => {
+    const t = flowPage(FLOW_CFG, { result: mpBlock({ name:"<img src=x onerror=alert(1)>",
+      src:["<b>x</b>: 10.1.0.0/24"] }) });
+    eq(t.$("flowReport").querySelector("img"), null);
+    eq(t.$("flowReport").querySelector(".pchip b"), null);
+    includes(t.text("flowReport"), "<img src=x onerror=alert(1)>");
+    eq(t.errors, []);
+  });
+
+  it("exports the answer as CSV and Markdown", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewFlow").click();
+    const got = [];
+    t.window.HTMLAnchorElement.prototype.click = function(){ got.push({ name:this.download, href:this.href }); };
+    t.$("csvBtn").click();
+    eq(got[0].name, "edge-srx-01-flow-match.csv");
+    const csv = decodeURIComponent(got[0].href.split(",").slice(1).join(","));
+    const rows = csv.split("\n");
+    eq(rows.length, 3);
+    includes(rows[0], '"Policy"');
+    includes(rows[1], '"allow-web"');
+    includes(rows[1], '"matched"');
+    includes(rows[2], '"never reached"');
+
+    let md = "";
+    Object.defineProperty(t.window.navigator, "clipboard", { configurable:true,
+      value:{ writeText: s => { md = s; return Promise.resolve(); } } });
+    t.$("mdBtn").click();
+    includes(md, "Flow: `show security match-policies from-zone trust to-zone untrust");
+    includes(md, "**permit** by allow-web");
+    includes(md, "| 1 | allow-web | trust | untrust | permit |");
+    eq(t.errors, []);
+  });
+
+  it("copies the command it wrote", () => {
+    const t = flowPage(FLOW_CFG, {});
+    let copied = "";
+    Object.defineProperty(t.window.navigator, "clipboard", { configurable:true,
+      value:{ writeText: s => { copied = s; return Promise.resolve(); } } });
+    t.$("flowCopy").click();
+    eq(copied, MP_CMD);
+  });
+
+  it("clears the form and the answer", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewFlow").click();
+    t.$("clearBtn").click();
+    for(const id of ["flowSrc","flowDst","flowSport","flowDport","flowCount","flowResult","flowFrom","flowTo"]) eq(t.$(id).value, "", id);
+    eq(t.$("flowProto").value, "tcp");
+    ok(!t.$("flow").classList.contains("on"));
+    eq(t.text("flowReport"), "");
+    eq(t.text("flowResState"), "waiting");
+    ok(t.$("flowCopy").disabled);
     eq(t.errors, []);
   });
 });
