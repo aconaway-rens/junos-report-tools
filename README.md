@@ -22,25 +22,61 @@ them by hand. This does the joins.
 | **Zones** | Each zone with its interfaces and the routes that egress them |
 | **Routes** | The route table, with where each route came from |
 | **Diagram** | A device wired out to each zone, one route box per interface — downloads as SVG |
-| **Policies** | Ordered per zone pair, with addresses and applications resolved through the address book |
+| **Policies** | Ordered per zone pair, with addresses and applications resolved through the address book, and what each policy logs — including logging inherited from config groups |
 | **VPN** | `security ipsec vpn` joined to its gateway, policies and proposals, alongside live IKE and IPsec state |
 | **Flow** | Would this flow pass? Writes the `show security match-policies` command, then reads the device's answer back against the config |
+| **Logging** | Where session logs go — `security log` streams and `system syslog` destinations, each with the interface and zone it leaves by — and what each policy logs (session-init, session-close, drops) |
 
 Both config forms are read — curly-brace and `| display set` — and you can mix them.
 
+### Getting everything in one go
+
+Under the box is a block of commands with a **Copy all commands** button:
+
+```
+set cli screen-length 0
+set cli screen-width 1024
+show configuration | display inheritance
+show route
+show security ipsec security-associations detail
+show security ike security-associations detail
+show security policies hit-count
+```
+
+Paste it into the SSH session and copy everything it prints, prompts included, into the
+box, or save the session log and open it. The two `set cli` lines turn off paging and line
+wrapping for that session only, so nothing is cut at `---(more)---` or split across lines.
+The prompt lines matter: they are how the page tells one command's output from the next.
+
+A saved terminal log is read the same as a paste. The byte-order mark, CRLF line endings,
+NUL padding, terminal escape codes, backspaces and leftover pager prompts are cleaned up
+first. A file too big to edit in the box (over about 4 MB) is still parsed in full.
+
+### Config groups
+
+`apply-groups` is taken into account. `show configuration | display inheritance` has the
+device write the inherited statements out in place, and that is the authoritative answer.
+For a plain `show configuration`, groups are expanded here the way Junos does it:
+wildcards such as `<*>` match only names the configuration already has, an explicitly
+configured value wins over an inherited one, an earlier group wins over a later one,
+`apply-groups` below the top applies only to that part of the config, and
+`apply-groups-except` is honoured. `${node}` is not expanded, because which node it means
+depends on the box. Groups that are applied nowhere are reported.
+
 ### Optional operational output
 
-The configuration is what the box is meant to do. Three optional panes take what it is
-actually doing:
+The configuration is what the box is meant to do. These say what it is actually doing:
 
 - `show route`
 - `show security ipsec security-associations detail`
 - `show security ike security-associations detail`
+- `show security policies hit-count`
 
-Paste them, drop a file on them, or ignore them. If you pasted a whole session capture or
-an RSI into the configuration box then they are already in there, and the panes say so
-rather than leaving you to paste it twice. Supply the same capture in both places and it is
-counted once. However you divide the input, the report comes out the same.
+There is one box. Paste them into it with the configuration, in any order, or leave them
+out. A session capture or an RSI already holds them. A checklist under the box lists the
+commands, each with a copy button, and ticks off each one it found with a count. Drop or
+open several files at once and they are all added; a file dropped onto a box that already
+holds something is appended to it. A capture pasted twice is counted once.
 
 Where a live capture overlaps the configuration the live one wins, **and the difference is
 reported**: a static route that never made it into the RIB, a phase 1 that came up on
@@ -57,8 +93,26 @@ that the config paste does not have, a deny sitting ahead of a permit that would
 passed the flow, a permit into a tunnel that is down, cluster nodes that disagree.
 
 The device makes the decision, not this page. Predefined `junos-*` applications and
-anything inherited through apply-groups are not in the configuration, so a verdict worked
-out locally would only be a plausible guess.
+groups expanded here without the device's own `display inheritance` are only an
+approximation, so a verdict worked out locally would only be a plausible guess.
+
+### Logging
+
+Where a session log goes depends on `security log mode`. In **stream** mode the data plane
+sends it straight to each `security log stream` host and system syslog never sees it; in
+**event** mode it goes to the routing engine and out through `system syslog`. The Logging
+view reads both hierarchies and tags each destination with whether it carries session
+logs, and why not when it doesn't. Each log host's address goes through the same
+route → interface → zone lookup as everything else, so you can see which way the logs leave.
+
+Paste `show security policies hit-count` and each policy also shows how many lookups hit
+it. A deny that logs nothing becomes "48,211 lookups hit this deny, none logged".
+
+Logging inherited through `apply-groups` is a common way to turn on `session-close`
+everywhere, so it is applied, and each log flag and destination that came from a group
+says which one. A group that sets policy logging but reaches no policy (applied nowhere,
+or its wildcards match nothing) is a warning, since the policies it was meant for do not
+log.
 
 ## What it will not do
 
@@ -89,6 +143,11 @@ Things it will tell you about, rather than making you notice:
   actually negotiated
 - a static next-hop that resolves nowhere
 - dynamic routing protocols whose routes are, by definition, not in the config
+- policies that ask for session logs when nothing receives them, a stream filtered above
+  `info`, a stream that can only leave through `fxp0`, stream mode with no source address,
+  and streams configured while the mode is `event`
+- `session-close` on a deny (it never fires — only `session-init` records a drop), and
+  zone pairs whose fall-through to the default policy is dropped without a log
 
 ## Exports
 

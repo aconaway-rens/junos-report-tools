@@ -39,7 +39,6 @@
   .pane-head .spacer{flex:1}
   .pane-head .state{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
   .pane-head .state.ok{color:var(--ok)}
-  .pane-head .state.found,.opt-head .state.found{color:var(--in)}
   .drop{position:relative;border-radius:5px}
   .drop.over::after{
     content:"Drop to read the file in this page";
@@ -55,22 +54,28 @@
   .pane.stowed textarea{min-height:72px;height:72px}
   .filenote{margin-top:6px;font-size:12px;color:var(--ink-faint);font-family:var(--mono)}
 
-  /* ---------- optional operational panes ---------- */
-  .opt{margin-top:16px;border:1px solid var(--rule);border-radius:5px;background:var(--panel)}
-  .opt-head{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-    background:transparent;border:0;border-radius:5px;padding:10px 14px;cursor:pointer;flex-wrap:wrap}
-  .opt-head:hover{border-color:transparent}
-  .opt-head .tw{font-family:var(--mono);font-size:11px;color:var(--ink-faint);width:9px}
-  .opt-head .spacer{flex:1}
-  .opt-hint{font-family:var(--mono);font-size:11px;color:var(--ink-faint);white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;max-width:100%}
-  .opt-body{display:none;padding:0 14px 14px;border-top:1px solid var(--rule-soft)}
-  .opt.on .opt-body{display:block}
-  .opt.on .opt-head .tw{color:var(--ink-dim)}
-  .opt .panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-top:12px}
-  .opt textarea{min-height:130px;font-size:11.5px}
-  .opt .pane-head .cmd{font-size:11px;padding:1px 6px}
-  .opt-note{margin:12px 0 0;font-size:12.5px;color:var(--ink-dim);max-width:78ch}
+  /* ---------- optional command checklist ---------- */
+  .checks{margin-top:14px;border:1px solid var(--rule);border-radius:5px;background:var(--panel)}
+  .checks-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;padding:9px 14px;border-bottom:1px solid var(--rule-soft)}
+  .checks-head .spacer{flex:1}
+  .checks-note{font-size:12px;color:var(--ink-faint)}
+  .ck{display:grid;grid-template-columns:18px minmax(0,auto) minmax(0,1fr) auto auto;gap:4px 12px;align-items:center;padding:6px 14px;border-top:1px solid var(--rule-soft)}
+  .oneshot + .ck{border-top:0}
+  .ck .mark{width:14px;height:14px;border-radius:50%;border:1px solid var(--ink-faint);
+    display:inline-flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:transparent}
+  .ck.on .mark{border-color:var(--ok);background:rgba(111,185,138,.14);color:var(--ok)}
+  .ck .cmd{justify-self:start;font-size:11.5px}
+  .ck.on .cmd{color:var(--ink)}
+  .ck .what{font-size:12px;color:var(--ink-faint);min-width:0}
+  .ck .found{font-family:var(--mono);font-size:11px;color:var(--ink-faint);white-space:nowrap}
+  .ck.on .found{color:var(--ok)}
+  .ck .copy{padding:3px 9px;font-size:12px}
+  .oneshot{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid var(--rule-soft)}
+  .oneshot pre{flex:1 1 360px;min-width:0;margin:0;background:var(--ground);border:1px solid var(--rule);border-radius:4px;
+    padding:9px 11px;font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre;overflow:auto;color:var(--ink)}
+  .oneshot-side{flex:1 1 260px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+  .oneshot-side p{margin:0;font-size:12.5px;color:var(--ink-dim)}
+  .oneshot-side code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
 
   .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
   button{font-family:var(--sans);font-size:13px;background:var(--panel-2);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:7px 13px;cursor:pointer}
@@ -298,6 +303,31 @@
   .hitrow .fq{font-family:var(--mono);font-size:12.5px;padding-top:3px}
   .hitrow .eyebrow{padding-top:5px}
 
+  /* ---------- logging ---------- */
+  .dest{display:grid;grid-template-columns:112px minmax(150px,1.1fr) minmax(150px,1fr) minmax(170px,1.2fr);
+    gap:4px 16px;align-items:start;padding:9px 16px;border-top:1px solid var(--rule-soft);font-family:var(--mono);font-size:12.5px}
+  .dest .eyebrow{padding-top:2px}
+  .dest .tgt{word-break:break-all}
+  .dest .carry{color:var(--ink-dim);word-break:break-word}
+  .dest .via{color:var(--ink-faint);word-break:break-word}
+  .dest .via.known{color:var(--in)}
+  .dest .via.warn{color:var(--out)}
+  .dest.inactive{opacity:.55}
+  .dest-notes{padding:0 16px 8px 144px;display:flex;flex-direction:column;gap:5px}
+  .tag.sess-yes{color:var(--ok);border-color:var(--ok)}
+  .tag.sess-maybe,.tag.sess-filtered{color:var(--out);border-color:var(--out)}
+  .tag.sess-no{color:var(--ink-faint)}
+  .card .table-in{overflow:auto;border-top:1px solid var(--rule-soft)}
+  .logline{display:flex;flex-wrap:wrap;gap:2px 7px;align-items:baseline;white-space:nowrap}
+  .logline + .logline{margin-top:4px}
+  .logline .what{font-family:var(--sans);font-size:12.5px}
+  .logline .kw{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+  .logline.on .what{color:var(--ok)}
+  .logline.warn .what{color:var(--out)}
+  .logline.off .what{color:var(--ink-faint)}
+  .inh{font-family:var(--mono);font-size:10px;letter-spacing:.03em;border:1px dashed var(--ink-dim);border-radius:3px;padding:0 5px;color:var(--ink-dim);cursor:help}
+  .card .table-in th{position:static}
+
   .hidden{display:none !important}
   .foot{margin-top:34px;font-size:12px;color:var(--ink-faint);line-height:1.6}
   .foot code{font-family:var(--mono)}
@@ -311,6 +341,10 @@
     .attrs{flex-direction:column;gap:4px}
     .flow-form{grid-template-columns:repeat(2,minmax(0,1fr))}
     .hitrow{grid-template-columns:1fr}
+    .dest{grid-template-columns:1fr}
+    .ck{grid-template-columns:18px minmax(0,1fr) auto}
+    .ck .what{grid-column:2 / -1}
+    .dest-notes{padding-left:16px}
   }
   @media (max-width:520px){
     .flow-form{grid-template-columns:1fr}
@@ -331,7 +365,7 @@
     <div class="pane-head">
       <label class="eyebrow" for="raw">Configuration</label>
       <span class="cmd">show configuration</span>
-      <span class="cmd">| display set</span>
+      <span class="cmd">| display inheritance</span>
       <span class="spacer"></span>
       <span class="state" id="inputState">not parsed</span>
     </div>
@@ -348,83 +382,62 @@ security {
     }
 }
 
-Operational output pasted in here alongside the config is picked up too, or use the
-optional panes below to keep each capture separate."></textarea>
+Paste the show commands listed below into this same box, in any order, before or after
+the configuration. Each capture is picked out and ticked off below."></textarea>
     </div>
     <div class="filenote hidden" id="fileNote"></div>
   </div>
 
-  <div class="opt" id="opt">
-    <button class="opt-head" id="optToggle" aria-expanded="false" aria-controls="optBody">
-      <span class="tw" id="optTwisty">&#9656;</span>
-      <span class="eyebrow">Operational output — optional</span>
-      <span class="opt-hint">show route &middot; ipsec security-associations &middot; ike security-associations</span>
+  <div class="checks" id="checks">
+    <div class="checks-head">
+      <span class="eyebrow">Optional &mdash; paste any of these into the box too</span>
       <span class="spacer"></span>
-      <span class="state" id="optState"></span>
-    </button>
-    <div class="opt-body" id="optBody">
-      <p class="opt-note">The configuration is what the box is meant to do. These are what it
-      is actually doing — paste either, both, or neither. Anything dropped into the
-      configuration box is still read, so these panes are only for keeping captures apart.</p>
-      <div class="panes">
-        <div class="pane">
-          <div class="pane-head">
-            <label class="eyebrow" for="rawRoutes">Route table</label>
-            <span class="cmd">show route</span>
-            <span class="spacer"></span>
-            <span class="state" id="routeState">optional</span>
-          </div>
-          <div class="drop" data-target="rawRoutes">
-            <textarea id="rawRoutes" spellcheck="false" placeholder="inet.0: 12 destinations, 14 routes (12 active, 0 holddown, 0 hidden)
-+ = Active Route, - = Last Active, * = Both
-
-0.0.0.0/0          *[Static/5] 2w3d 04:12:33
-                    >  to 203.0.113.254 via reth1.0"></textarea>
-          </div>
-        </div>
-        <div class="pane">
-          <div class="pane-head">
-            <label class="eyebrow" for="rawSAs">IPsec SAs</label>
-            <span class="cmd">show security ipsec security-associations detail</span>
-            <span class="spacer"></span>
-            <span class="state" id="saState">optional</span>
-          </div>
-          <div class="drop" data-target="rawSAs">
-            <textarea id="rawSAs" spellcheck="false" placeholder="  ID: 500001 Virtual-system: root, VPN Name: to-branch
-  Local Gateway: 203.0.113.10, Remote Gateway: 198.51.100.77
-  Bind-interface: st0.0
-    Direction: inbound, SPI: 0x0a2b3c4d
-      Mode: Tunnel(0 0), Type: dynamic, State: installed"></textarea>
-          </div>
-        </div>
-        <div class="pane">
-          <div class="pane-head">
-            <label class="eyebrow" for="rawIKE">IKE SAs</label>
-            <span class="cmd">show security ike security-associations detail</span>
-            <span class="spacer"></span>
-            <span class="state" id="ikeState">optional</span>
-          </div>
-          <div class="drop" data-target="rawIKE">
-            <textarea id="rawIKE" spellcheck="false" placeholder="IKE peer 198.51.100.77, Index 6666666, Gateway Name: gw-branch
-  Role: Initiator, State: UP
-  Exchange type: IKEv2, Authentication method: Pre-shared-keys
-  Local: 203.0.113.10:500, Remote: 198.51.100.77:500
-  Lifetime: Expires in 22391 seconds
-
-or the summary form
-
-Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
-6666666 UP     5d3f2a1b9c8e7f60  a1b2c3d4e5f60718  IKEv2  198.51.100.77"></textarea>
-          </div>
-        </div>
+      <span class="checks-note">the configuration says what the box should do; these say what it is doing</span>
+    </div>
+    <div class="oneshot">
+      <pre id="allCmds"></pre>
+      <div class="oneshot-side">
+        <button class="primary" id="copyAll" type="button">Copy all commands</button>
+        <p>Paste into the SSH session, then copy everything it prints &mdash; prompts included &mdash;
+        into the box above. The two <code>set cli</code> lines stop paging and line wrapping for
+        this session only, so nothing is cut at <code>---(more)---</code> or split across lines.
+        <code>display inheritance</code> has the device write out what config groups add.</p>
       </div>
+    </div>
+    <div class="ck" id="ckRoutes" data-cmd="show route">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="cmd">show route</span>
+      <span class="what">the live RIB &mdash; dynamic routes, and statics that never installed</span>
+      <span class="found"></span>
+      <button class="ghost copy" type="button">Copy</button>
+    </div>
+    <div class="ck" id="ckSAs" data-cmd="show security ipsec security-associations detail">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="cmd">show security ipsec security-associations detail</span>
+      <span class="what">phase 2 &mdash; which tunnels are up, per direction</span>
+      <span class="found"></span>
+      <button class="ghost copy" type="button">Copy</button>
+    </div>
+    <div class="ck" id="ckIKE" data-cmd="show security ike security-associations detail">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="cmd">show security ike security-associations detail</span>
+      <span class="what">phase 1 &mdash; and the algorithms actually negotiated</span>
+      <span class="found"></span>
+      <button class="ghost copy" type="button">Copy</button>
+    </div>
+    <div class="ck" id="ckHits" data-cmd="show security policies hit-count">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="cmd">show security policies hit-count</span>
+      <span class="what">which policies see traffic &mdash; and the drops nobody logs</span>
+      <span class="found"></span>
+      <button class="ghost copy" type="button">Copy</button>
     </div>
   </div>
 
   <div class="controls">
     <button class="primary" id="parseBtn">Build report</button>
     <button class="ghost" id="fileBtn">Open file&hellip;</button>
-    <input type="file" id="fileInput" accept=".txt,.conf,.cfg,.config,.log,.set,.text,text/plain">
+    <input type="file" id="fileInput" multiple accept=".txt,.conf,.cfg,.config,.log,.set,.text,text/plain">
     <button class="ghost" id="sampleBtn">Load sample</button>
     <button class="ghost" id="clearBtn">Clear</button>
     <span class="spacer"></span>
@@ -455,6 +468,7 @@ Index   State  Initiator cookie  Responder cookie  Mode   Remote Address
       <button id="viewPolicies" aria-pressed="false">Policies</button>
       <button id="viewVpn" aria-pressed="false">VPN</button>
       <button id="viewFlow" aria-pressed="false">Flow</button>
+      <button id="viewLogging" aria-pressed="false">Logging</button>
     </div>
   </div>
 
@@ -580,15 +594,23 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     <code>show route</code>. A next-hop that falls outside every configured subnet is reported
     unresolved rather than guessed at. Pre-shared keys are never rendered.
     <br><br>
-    <b>Configuration and live state answer different questions.</b> The optional panes take
-    <code>show route</code>, <code>show security ipsec security-associations detail</code> and
-    <code>show security ike security-associations detail</code>. Where a capture overlaps the
+    <b>Configuration and live state answer different questions.</b> Paste
+    <code>show route</code>, <code>show security ipsec security-associations detail</code>,
+    <code>show security ike security-associations detail</code> and
+    <code>show security policies hit-count</code> into the same box as the configuration, in any
+    order, and each one is picked out of it. A capture pasted twice is counted once. Where a capture overlaps the
     configuration the live one wins, and the difference is reported: a static route that never
     made it into the RIB, a phase 1 that came up on algorithms the proposals merely allowed, a
     tunnel negotiated at phase 1 with no phase 2 SA behind it. Take the captures from the same
     box at the same time — a stale one attributes traffic to the wrong place.
+    <br><br>
+    <b>Logging depends on the mode.</b> In stream mode the data plane sends session logs straight
+    to each <code>security log stream</code> host and system syslog never sees them; in event mode
+    they go through <code>system syslog</code>. The Logging view reads both and says which one
+    carries them. Hit counts are policy lookups since the counters were last cleared, not sessions
+    logged.
   </p>
-  <div class="ver">Version 1.2</div>
+  <div class="ver">Version 1.3</div>
 </div>
 
 <script>
@@ -714,21 +736,39 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     if(seg.length && fromSet) emitRec(recs, st, seg, inactive || segOff, node);
   }
 
+  // Junos prints every top-level hierarchy at column 0 and indents everything under
+  // it, so a column-0 line opening one of these is the top of the tree whatever came
+  // before. Seeing one resets the brace stack, which recovers the configuration when
+  // text pasted ahead of it - a capture with a stray brace - left a block open.
+  var TOP_RE = /^(?:inactive:\s+)?(?:groups|apply-groups|system|chassis|security|interfaces|snmp|forwarding-options|routing-options|protocols|policy-options|class-of-service|firewall|routing-instances|applications|services|access|access-profile|event-options|logical-systems|vlans|switch-options|ethernet-switching-options|poe|schedulers|bridge-domains|virtual-chassis|tenants|dynamic-profiles|accounting-options|utility-options|smtp|multi-chassis|wlan)\s*\{\s*$/;
+  var PEND_MAX = 50;
+
   function flatten(text){
     if(!text) return [];
     var lines = String(text).replace(/\r\n?/g,"\n").split("\n");
-    var recs = [], stack = [], node = "", pend = null;
-    var i, raw, toks, k, bd, nm;
+    var recs = [], stack = [], node = "", pend = null, pendLines = 0;
+    var i, raw, toks, k, bd;
 
     for(i=0;i<lines.length;i++){
       raw = lines[i];
+      // A real [ list ] holds only values. A brace or semicolon ahead of any "]", a
+      // prompt, a node banner, or a list running on for pages means the "[" was not a
+      // list - stray text from a capture - so stop joining lines onto it.
+      if(pend && (++pendLines > PEND_MAX || /^[^\]]*[{};]/.test(raw) || PROMPT_RE.test(raw) || NODE_RE.test(raw))){
+        handleStatement(pend, stack, recs, node);
+        pend = null;
+      }
       if(!pend){
         if(!raw.trim()) continue;
-        nm = raw.match(NODE_RE);
-        if(nm){ node = nm[1].toLowerCase(); stack = []; continue; }
+        // show configuration never prints node0:/node1: - the config is shared across a
+        // cluster. A banner here belongs to an operational capture pasted alongside,
+        // so it ends any open block but does not tag the configuration with a node:
+        // a zone carrying node0 while the routes do not breaks the zone/route join.
+        if(NODE_RE.test(raw)){ stack = []; continue; }
         if(PROMPT_RE.test(raw)) continue;
         if(HASH_RE.test(raw)) continue;
         raw = raw.replace(/\/\*[^*]*\*\//g, " ");
+        if(stack.length && TOP_RE.test(raw)) stack = [];
       }
 
       toks = tokenize(raw);
@@ -737,7 +777,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 
       bd = 0;
       for(k=0;k<toks.length;k++){ if(toks[k]==="[") bd++; else if(toks[k]==="]") bd--; }
-      if(bd > 0){ pend = toks; continue; }          // list runs onto the next line
+      if(bd > 0){ if(!pend) pendLines = 0; pend = toks; continue; }   // list runs onto the next line
 
       handleStatement(toks, stack, recs, node);
     }
@@ -768,6 +808,136 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
   function has(flat, pat){
     for(var i=0;i<flat.length;i++){ if(tailOf(flat[i], pat)) return true; }
     return false;
+  }
+
+  /* ---- apply-groups ----
+     A group holds a full hierarchy, and apply-groups at some level copies the part of
+     it under that level into the configuration. The rules followed here are Junos's:
+
+       - a wildcard (<*>, <*-trust>) matches only names the configuration already has,
+         so it never creates an object; a plain name in a group does create one
+       - a value configured explicitly wins over an inherited one, and a group listed
+         earlier wins over one listed later; lists and flags merge
+       - apply-groups below the top applies only to that subtree; apply-groups-except
+         removes a group from one
+       - ${node} names node0 or node1 depending on the box, so it is not applied here
+
+     show configuration | display inheritance has the device do all of this. Its output
+     already holds the inherited statements in place, each of which is then an exact
+     repeat of what this would add, so nothing is added twice.                      */
+
+  // Leaves that hold one value, so an explicit value and an inherited one conflict
+  // rather than merge. Everything else (flags, list members) merges.
+  var SINGLE_LEAF = /^(mode|format|source-address|source-interface|severity|port|routing-instance|host-name|description|protocol|tls-profile|facility-override|log-prefix|transport|vlan-id|mtu|encapsulation|screen|bind-interface|external-interface|ike-policy|ipsec-policy|gateway|version|dh-group|authentication-algorithm|encryption-algorithm|lifetime-seconds|authentication-method|instance-type|scheduler-name|default-policy|destination-port|source-port|establish-tunnels|time-zone|domain-name)$/;
+
+  function isWild(t){ return /^<.*>$/.test(t); }
+  function wildRe(t){
+    var body = t.slice(1, -1).replace(/[.+^${}()|\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+    return new RegExp("^" + body + "$");
+  }
+
+  // The key two statements share when one value replaces the other.
+  function leafKey(p){
+    var n = p.length;
+    if(n < 2) return null;
+    if(SINGLE_LEAF.test(p[n-2])) return p.slice(0, n-1).join("\u0001");
+    // system syslog <dest> <facility> <severity>: one severity per facility.
+    if(p[0] === "system" && p[1] === "syslog" && SYSLOG_SEV.test(p[n-1]) && n >= 4) return p.slice(0, n-1).join("\u0001");
+    return null;
+  }
+
+  function applyGroups(flat){
+    // applied: added at least one statement. reached: matched something, even if the
+    // paste already held it - which is what display inheritance output looks like.
+    var res = { flat:flat, inherited:0, applied:[], reached:[], unapplied:[], nodeGroup:false };
+    var defined = uniq(flat.filter(function(r){ return !!r.grp; }).map(function(r){ return r.grp; }));
+    if(!defined.length) return res;
+
+    var explicit = flat.filter(function(r){ return !r.grp; });
+
+    // Where groups are applied, deepest level first so a closer apply-groups wins.
+    // Set form deactivates in a statement of its own, beside the active one.
+    var off = {};
+    explicit.forEach(function(r){ if(r.inactive) off[r.p.join("\u0001")] = 1; });
+    function deactivated(level, kw, g){
+      return !!(off[level.concat([kw]).join("\u0001")] || off[level.concat([kw, g]).join("\u0001")]);
+    }
+
+    var applies = [], excepts = [];
+    explicit.forEach(function(r){
+      if(r.inactive) return;
+      var j = r.p.indexOf("apply-groups"), x = r.p.indexOf("apply-groups-except");
+      if(j !== -1) applies.push({ level:r.p.slice(0, j), groups:r.p.slice(j+1) });
+      if(x !== -1) excepts.push({ level:r.p.slice(0, x), groups:r.p.slice(x+1) });
+    });
+    applies.sort(function(a, b){ return b.level.length - a.level.length; });
+
+    // Children of every explicit path, which is all a wildcard may match.
+    var kids = {};
+    explicit.forEach(function(r){
+      for(var k=0;k<r.p.length;k++){
+        var key = r.p.slice(0, k).join("\u0001");
+        (kids[key] = kids[key] || []);
+        if(kids[key].indexOf(r.p[k]) === -1) kids[key].push(r.p[k]);
+      }
+    });
+    function expand(tail){
+      var out = [[]];
+      tail.forEach(function(t){
+        var next = [];
+        out.forEach(function(pre){
+          if(!isWild(t)){ next.push(pre.concat([t])); return; }
+          var re = wildRe(t);
+          (kids[pre.join("\u0001")] || []).forEach(function(c){ if(re.test(c)) next.push(pre.concat([c])); });
+        });
+        out = next;
+      });
+      return out;
+    }
+    function under(p, level){
+      for(var i=0;i<level.length;i++) if(p[i] !== level[i]) return false;
+      return true;
+    }
+
+    var have = {}, leaves = {};
+    explicit.forEach(function(r){
+      have[r.p.join("\u0001")] = 1;
+      var lk = leafKey(r.p);
+      if(lk) leaves[lk] = 1;
+    });
+
+    var added = [];
+    applies.forEach(function(a){
+      a.groups.forEach(function(g){
+        if(deactivated(a.level, "apply-groups", g)) return;
+        if(/^\$\{node\}$/.test(g)){ res.nodeGroup = true; return; }
+        if(defined.indexOf(g) === -1) return;
+        flat.forEach(function(r){
+          if(r.grp !== g || r.inactive || r.p.length < 3) return;
+          expand(r.p.slice(2)).forEach(function(p){
+            if(!under(p, a.level)) return;
+            if(excepts.some(function(e){ return e.groups.indexOf(g) !== -1 && under(p, e.level); })) return;
+            push(res.reached, g);
+            var k = p.join("\u0001");
+            if(have[k]) return;
+            var lk = leafKey(p);
+            if(lk && leaves[lk]) return;
+            have[k] = 1;
+            if(lk) leaves[lk] = 1;
+            added.push({ p:p, inactive:false, node:"", grp:"", inh:g });
+            push(res.applied, g);
+          });
+        });
+      });
+    });
+
+    res.unapplied = defined.filter(function(g){
+      return res.reached.indexOf(g) === -1 && !(res.nodeGroup && /^node\d+$/.test(g));
+    });
+    res.inherited = added.length;
+    // Appended, not interleaved: an inherited policy lands after the zone pair's own.
+    res.flat = flat.concat(added);
+    return res;
   }
 
   /* ============================ IP MATH ============================
@@ -1291,7 +1461,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
         if(rest[2] === "application-services" && rest[3]) push(P.services, rest[3]);
         return;
       }
-      if(rest[1] === "log")   { push(P.log, rest[2]); return; }
+      if(rest[1] === "log")   { push(P.log, rest[2]); if(rec.inh && rest[2]) P.logFrom[rest[2]] = rec.inh; return; }
       if(rest[1] === "count") { P.count = true; return; }
       return;
     }
@@ -1308,7 +1478,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
         byKey[k] = { from:from, to:to, name:name, global:!!global, seq:0, desc:"", scheduler:"",
                      src:[], dst:[], app:[], identity:[], globalFrom:[], globalTo:[],
                      srcExcluded:false, dstExcluded:false, action:"", tunnel:"",
-                     log:[], count:false, services:[], inactive:false, notes:[] };
+                     log:[], logFrom:{}, count:false, services:[], inactive:false, notes:[] };
         list.push(byKey[k]);
       }
       return byKey[k];
@@ -1372,6 +1542,172 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     if(A.dport) return (A.protocol || "?") + "/" + A.dport;
     if(A.terms) return plural(A.terms, "term");
     return A.protocol || "";
+  }
+
+  /* ============================ LOGGING ============================
+     A session log takes one of two paths, and the mode decides which:
+
+       security log mode stream  - the data plane sends RT_FLOW records straight to
+                                   each stream host. System syslog never sees them.
+       security log mode event   - the records go to the routing engine and leave
+                                   through system syslog like any other message.
+
+     So "where does this box log to" needs both hierarchies read together, and
+     neither one alone answers it.                                              */
+
+  var SYSLOG_SEV = /^(any|emergency|alert|critical|error|warning|notice|info|none)$/i;
+  var SEV_RANK   = { emergency:0, alert:1, critical:2, error:3, warning:4, notice:5, info:6, debug:7, any:7 };
+
+  // Session records are sent at info. A destination filtered above that never gets them.
+  function sevTakesInfo(s){
+    var r = SEV_RANK[String(s||"").toLowerCase()];
+    return r !== undefined && r >= 6;
+  }
+
+  function syslogFromFlat(flat){
+    var dests = [], byKey = {}, top = { sourceAddress:"", present:false };
+    function D(kind, name){
+      var k = kind + " " + name;
+      if(!byKey[k]){
+        byKey[k] = { kind:kind, name:name, levels:[], match:[], port:"", sourceAddress:"",
+                     routingInstance:"", transport:"", structured:false, facilityOverride:"",
+                     logPrefix:"", recs:0, inactiveRecs:0, inactive:false, from:[], notes:[] };
+        dests.push(byKey[k]);
+      }
+      return byKey[k];
+    }
+    walk(flat, ["system","syslog"], function(rest, rec){
+      top.present = true;
+      if(!rest.length) return;
+      var kind = rest[0], name, r;
+      if(kind === "source-address"){ top.sourceAddress = rest[1] || ""; return; }
+      if(kind === "host" || kind === "file" || kind === "user"){
+        name = rest[1]; r = rest.slice(2);
+        if(!name) return;
+      } else if(kind === "console"){ name = "console"; r = rest.slice(1); }
+      else return;
+
+      var d = D(kind, name);
+      if(rec.inh) push(d.from, rec.inh);
+      d.recs++;
+      if(rec.inactive) d.inactiveRecs++;
+      if(!r.length){ if(rec.inactive) d.selfInactive = true; return; }
+      if(r.length === 2 && SYSLOG_SEV.test(r[1])){ d.levels.push({ facility:r[0], severity:r[1].toLowerCase() }); return; }
+      if(r[0] === "match" || r[0] === "match-strings"){ for(var i=1;i<r.length;i++) push(d.match, r[i]); return; }
+      if(r[0] === "port")              { d.port = r[1] || ""; return; }
+      if(r[0] === "source-address")    { d.sourceAddress = r[1] || ""; return; }
+      if(r[0] === "routing-instance")  { d.routingInstance = r[1] || ""; return; }
+      if(r[0] === "transport")         { d.transport = r[1] || ""; return; }
+      if(r[0] === "structured-data")   { d.structured = true; return; }
+      if(r[0] === "facility-override") { d.facilityOverride = r[1] || ""; return; }
+      if(r[0] === "log-prefix")        { d.logPrefix = r[1] || ""; return; }
+    });
+    // Inactive when the destination itself is deactivated, or every statement under
+    // it is - one inactive knob does not make a whole destination look switched off.
+    dests.forEach(function(d){ d.inactive = !!d.selfInactive || (d.recs > 0 && d.inactiveRecs === d.recs); });
+    return { dests:dests, sourceAddress:top.sourceAddress, present:top.present };
+  }
+
+  function securityLogFromFlat(flat){
+    var L = { present:false, mode:"", format:"", sourceAddress:"", sourceInterface:"", disabled:false,
+              transport:"", tlsProfile:"", utc:false, report:false, file:null, streams:[], from:[] };
+    var byName = {};
+    function S(n){
+      if(!byName[n]){
+        byName[n] = { kind:"stream", name:n, host:"", port:"", routingInstance:"", format:"", severity:"",
+                      categories:[], filters:[], transport:"", tlsProfile:"", file:null,
+                      recs:0, inactiveRecs:0, inactive:false, from:[], notes:[] };
+        L.streams.push(byName[n]);
+      }
+      return byName[n];
+    }
+    function fileAttr(F, r){
+      if(r[0] === "name" || r[0] === "path" || r[0] === "size" || r[0] === "files") F[r[0]] = r[1] || "";
+    }
+    walk(flat, ["security","log"], function(rest, rec){
+      L.present = true;
+      if(rec.inh && rest[0] !== "stream") push(L.from, rec.inh);
+      if(!rest.length) return;
+      var k = rest[0], i;
+      if(k === "mode")             { L.mode = rest[1] || ""; return; }
+      if(k === "format")           { L.format = rest[1] || ""; return; }
+      if(k === "source-address")   { L.sourceAddress = rest[1] || ""; return; }
+      if(k === "source-interface") { L.sourceInterface = rest[1] || ""; return; }
+      if(k === "disable")          { L.disabled = !rec.inactive; return; }
+      if(k === "utc-timestamp")    { L.utc = true; return; }
+      if(k === "report")           { L.report = true; return; }
+      if(k === "transport"){
+        if(rest[1] === "protocol")    L.transport = rest[2] || "";
+        if(rest[1] === "tls-profile") L.tlsProfile = rest[2] || "";
+        return;
+      }
+      if(k === "file"){ L.file = L.file || { name:"", path:"", size:"", files:"" }; fileAttr(L.file, rest.slice(1)); return; }
+      if(k !== "stream" || !rest[1]) return;
+
+      var St = S(rest[1]), r = rest.slice(2);
+      if(rec.inh) push(St.from, rec.inh);
+      St.recs++;
+      if(rec.inactive) St.inactiveRecs++;
+      if(!r.length){ if(rec.inactive) St.selfInactive = true; return; }
+      if(r[0] === "host"){
+        // host { 192.0.2.5; port 514; routing-instance X; } and the set-form
+        // equivalents all land here as one token run after "host".
+        for(i=1;i<r.length;i++){
+          if(r[i] === "port")                  St.port = r[++i] || "";
+          else if(r[i] === "routing-instance") St.routingInstance = r[++i] || "";
+          else St.host = r[i];
+        }
+        return;
+      }
+      if(r[0] === "format")   { St.format = r[1] || ""; return; }
+      if(r[0] === "severity") { St.severity = (r[1] || "").toLowerCase(); return; }
+      if(r[0] === "category") { for(i=1;i<r.length;i++) push(St.categories, r[i]); return; }
+      if(r[0] === "filter")   { for(i=1;i<r.length;i++) push(St.filters, r[i]); return; }
+      if(r[0] === "transport"){
+        if(r[1] === "protocol")    St.transport = r[2] || "";
+        if(r[1] === "tls-profile") St.tlsProfile = r[2] || "";
+        return;
+      }
+      if(r[0] === "file"){ St.file = St.file || { name:"", path:"", size:"", files:"" }; fileAttr(St.file, r.slice(1)); return; }
+    });
+    L.streams.forEach(function(s){ s.inactive = !!s.selfInactive || (s.recs > 0 && s.inactiveRecs === s.recs); });
+    return L;
+  }
+
+  /* ---- show security policies hit-count ----
+     A table, one row per policy:
+
+       Index   From zone   To zone   Name        Policy count  Action
+       1       trust       untrust   allow-web   1520          Permit
+
+     Rows are read only after that header has gone by, so nothing in a
+     configuration paste is ever mistaken for one.                               */
+
+  var HC_HEAD_RE = /^\s*Index\s+From\s+zone\s+To\s+zone\s+Name\s+(?:Policy|Hit)\s+count/i;
+  var HC_ROW_RE  = /^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)(?:\s+(\S+))?\s*$/;
+
+  function parseHitCount(text){
+    var out = [];
+    if(!text) return out;
+    var lines = String(text).replace(/\r\n?/g,"\n").split("\n");
+    var node = "", lsys = "", inTable = false, i, ln, m;
+    for(i=0;i<lines.length;i++){
+      ln = lines[i];
+      m = ln.match(NODE_RE);
+      if(m){ node = m[1].toLowerCase(); inTable = false; continue; }
+      m = ln.match(/^\s*Logical system:\s*(\S+)/i);
+      if(m){ lsys = m[1]; continue; }
+      if(HC_HEAD_RE.test(ln)){ inTable = true; continue; }
+      if(!inTable) continue;
+      m = ln.match(HC_ROW_RE);
+      if(m){
+        out.push({ node:node, lsys:lsys, index:m[1], from:m[2], to:m[3], name:m[4],
+                   count:parseInt(m[5],10), action:(m[6] || "").toLowerCase() });
+        continue;
+      }
+      if(ln.trim() && !/^\s*-+\s*$/.test(ln)) inTable = false;
+    }
+    return out;
   }
 
   /* ============================ IKE / IPSEC FROM CONFIG ============================ */
@@ -2332,10 +2668,10 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
      back through. Main table only: the ingress interface picks the routing instance,
      and that is the one thing this form does not know.                          */
 
-  function zoneForAddress(ip, m){
+  function zoneForAddress(ip, m, inst){
     var bits = ipBits(ip);
     if(!bits) return null;
-    var tbl = bits.length === 128 ? "inet6.0" : "inet.0";
+    var tbl = tableFor(inst || "", bits.length === 128 ? "inet6" : "inet");
     var best = -1, legs = [], own = "";
 
     m.ifx.order.forEach(function(n){
@@ -2492,17 +2828,20 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 
   // First match wins within a zone pair, so anything after a catch-all permit or
   // deny in the same pair can never be reached.
+  function isCatchAll(p){
+    return p.src.length === 1 && p.src[0] === "any" &&
+           p.dst.length === 1 && p.dst[0] === "any" &&
+           p.app.length === 1 && p.app[0] === "any" &&
+           !p.srcExcluded && !p.dstExcluded && !p.identity.length && !p.scheduler;
+  }
+
   function markShadowed(policies){
     var catchAll = {};
     policies.forEach(function(p){
       var k = p.from + " " + p.to;
       if(catchAll[k] && !p.inactive) p.shadowedBy = catchAll[k];
       if(p.inactive || !p.action) return;
-      var anyAll = p.src.length === 1 && p.src[0] === "any" &&
-                   p.dst.length === 1 && p.dst[0] === "any" &&
-                   p.app.length === 1 && p.app[0] === "any" &&
-                   !p.srcExcluded && !p.dstExcluded && !p.identity.length && !p.scheduler;
-      if(anyAll && !catchAll[k]) catchAll[k] = p.name;
+      if(isCatchAll(p) && !catchAll[k]) catchAll[k] = p.name;
     });
   }
 
@@ -2570,6 +2909,262 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     return [{kind:"unres", label:token, sub:"not defined under applications"}];
   }
 
+  /* ============================ LOGGING MODEL ============================ */
+
+  var MGMT_IF_RE = /^(fxp|em|me)\d/;
+
+  // The way out for a log host, by the same route -> interface -> zone join as
+  // everything else. A host name is not looked up: there is no resolver here.
+  function logPath(addr, inst, ctx){
+    if(!addr) return null;
+    var sug = zoneForAddress(addr, ctx, inst);
+    if(!sug) return { name:true };
+    var ifs = uniq(sug.legs.map(function(l){ return l.iface; }).filter(Boolean));
+    return { table:sug.table, own:sug.own, prefix:sug.prefix, ifaces:ifs, zones:sug.zones,
+             kind: !sug.legs.length ? "none" : (ifs.length ? "ok" : sug.legs[0].kind),
+             nh: sug.legs.length ? (sug.legs[0].nh || "") : "",
+             mgmt: ifs.some(function(i){ return MGMT_IF_RE.test(i); }) };
+  }
+
+  function pathText(p){
+    if(!p) return "";
+    if(p.name) return "host name - not resolved here";
+    if(p.own) return "this firewall's own address on " + p.own;
+    if(p.kind === "none") return "no route in " + p.table;
+    var s = p.prefix;
+    if(p.kind !== "ok") return s + " " + (p.kind === "unresolved" ? "next-hop " + p.nh + " unresolved" : p.kind);
+    s += " via " + p.ifaces.join(", ");
+    if(p.zones.length) s += " → " + p.zones.join(", ");
+    return s;
+  }
+
+  function pathNotes(what, addr, p, inst, ctx){
+    var out = [];
+    if(!p || p.name) return out;
+    if(p.own){
+      out.push({level:"warn", text:addr + " is this firewall's own address on " + p.own + ", so " + what + " sends to itself."});
+      return out;
+    }
+    if(p.kind === "none"){
+      var dyn = ctx.dynamicProtocols.length;
+      var instNote = inst ? " Routing instance " + inst + " has no route in this paste that covers it." : "";
+      out.push({level:(dyn || inst) ? "info" : "warn", text:"No route in " + p.table + " covers " + addr +
+        ", so " + what + " has no way out in the configuration." + instNote +
+        (dyn ? " It may be learned through " + ctx.dynamicProtocols.join(", ") + " - paste show route to check." : "")});
+      return out;
+    }
+    if(p.kind === "unresolved"){
+      out.push({level:"info", text:"The route to " + addr + " (" + p.prefix + ") has next-hop " + p.nh +
+        ", which falls in no configured subnet, so the interface the logs leave by is not known."});
+    }
+    return out;
+  }
+
+  // Which way a stream or a syslog destination is for session logs: "yes", "no",
+  // "maybe" when the paste cannot settle it, "filtered" when a match narrows it.
+  function streamCarries(s, L){
+    if(L.disabled)                                    return ["no", "security log is disabled"];
+    if(L.mode === "event")                            return ["no", "event mode - streams are not used"];
+    if(!s.host && !s.file)                            return ["no", "no host"];
+    if(s.severity && !sevTakesInfo(s.severity))       return ["no", "severity " + s.severity + " drops info"];
+    if(!L.mode)                                       return ["maybe", "mode not set - platform default decides"];
+    if(s.categories.length && s.categories.indexOf("all") === -1)
+                                                      return ["maybe", "category " + s.categories.join(", ") + " only"];
+    return ["yes", ""];
+  }
+  function syslogCarries(d, L){
+    if(d.kind === "user" || d.kind === "console")     return ["no", ""];
+    if(L.mode === "stream")                           return ["no", "stream mode - the data plane sends them"];
+    if(L.disabled)                                    return ["no", "security log is disabled"];
+    var lvl = d.levels.some(function(l){
+      return (l.facility === "any" || l.facility === "user") && sevTakesInfo(l.severity);
+    });
+    if(!lvl)                                          return ["no", "nothing at info"];
+    if(d.match.length && !d.match.some(function(x){ return /RT_FLOW/i.test(x); }))
+                                                      return ["filtered", "match " + d.match.join(" ")];
+    if(!L.mode)                                       return ["maybe", "event mode only - mode not set"];
+    return ["yes", ""];
+  }
+
+  function buildLogging(flat, pols, hits, ctx){
+    var L  = securityLogFromFlat(flat);
+    var SL = syslogFromFlat(flat);
+    var notes = [];
+    var i;
+
+    // ---- where to ----
+    var srcIf = "";
+    if(L.sourceAddress){
+      ctx.ifx.order.forEach(function(n){
+        ctx.ifx.units[n].addrs.forEach(function(a){
+          if(!srcIf && ipBits(String(a.addr).split("/")[0]) === ipBits(L.sourceAddress)) srcIf = n;
+        });
+      });
+    }
+    L.sourceIf = srcIf;
+
+    L.streams.forEach(function(s){
+      var p = s.host ? logPath(s.host, s.routingInstance, ctx) : null;
+      var c = streamCarries(s, L);
+      s.path = p; s.via = pathText(p); s.sessions = c[0]; s.why = c[1];
+      s.notes = [];
+      if(!s.host && !s.file) s.notes.push({level:"bad", text:"Stream " + s.name + " has no host, so it sends nowhere."});
+      if(s.severity && !sevTakesInfo(s.severity)){
+        s.notes.push({level:"warn", text:"Filtered at severity " + s.severity + ". Session logs are sent at info, so this stream never carries them."});
+      }
+      if((s.transport || L.transport) === "tls" && !(s.tlsProfile || L.tlsProfile)){
+        s.notes.push({level:"warn", text:"Transport is TLS but no tls-profile is set, here or under security log transport."});
+      }
+      if((s.format || L.format) === "binary"){
+        s.notes.push({level:"info", text:"Binary format - a generic syslog server cannot read it; it needs Juniper's own log tooling."});
+      }
+      if(L.mode !== "event"){
+        // The data plane sends stream records, and fxp0 belongs to the routing engine.
+        if((p && p.mgmt) || s.routingInstance === "mgmt_junos"){
+          s.notes.push({level:"warn", text:"Reached through the management port" +
+            (p && p.ifaces.length ? " (" + p.ifaces.join(", ") + ")" : " (routing instance mgmt_junos)") +
+            ". Stream records leave from the data plane, which on most SRX platforms and releases cannot send out fxp0. Check this host is reachable through a revenue port."});
+        }
+        s.notes = s.notes.concat(pathNotes("stream " + s.name, s.host, p, s.routingInstance, ctx));
+      }
+    });
+
+    SL.dests.forEach(function(d){
+      var p = d.kind === "host" ? logPath(d.name, d.routingInstance, ctx) : null;
+      var c = syslogCarries(d, L);
+      d.path = p; d.via = pathText(p); d.sessions = c[0]; d.why = c[1];
+      d.notes = d.kind === "host" ? pathNotes("syslog host " + d.name, d.name, p, d.routingInstance, ctx) : [];
+      if(d.sessions === "filtered"){
+        d.notes.push({level:"info", text:"Takes info-level messages but only those matching " + d.match.join(" ") +
+          ", which does not name RT_FLOW. Check the pattern lets session logs through."});
+      }
+    });
+
+    // ---- what ----
+    var hitIdx = {}, byName = {};
+    pols.forEach(function(p){
+      hitIdx[p.from + " " + p.to + " " + p.name] = p;
+      (byName[p.name] = byName[p.name] || []).push(p);
+    });
+    var rows = pols.map(function(p){
+      return { p:p, init:p.log.indexOf("session-init") !== -1, close:p.log.indexOf("session-close") !== -1,
+               initFrom:p.logFrom["session-init"] || "", closeFrom:p.logFrom["session-close"] || "",
+               hits:null, nodes:{}, notes:[] };
+    });
+    var rowOf = {};
+    rows.forEach(function(r){ rowOf[r.p.from + " " + r.p.to + " " + r.p.name] = r; });
+
+    var stray = [];
+    hits.forEach(function(h){
+      // Exact zone pair first. A global policy prints whatever the release uses for
+      // its zones, so fall back to the name - but only when the name is unique.
+      var p = hitIdx[h.from + " " + h.to + " " + h.name] ||
+              (byName[h.name] && byName[h.name].length === 1 ? byName[h.name][0] : null);
+      if(!p){ push(stray, h.name); return; }
+      var r = rowOf[p.from + " " + p.to + " " + p.name];
+      r.hits = (r.hits || 0) + h.count;
+      if(h.node) r.nodes[h.node] = (r.nodes[h.node] || 0) + h.count;
+    });
+
+    rows.forEach(function(r){
+      var p = r.p, deny = p.action === "deny" || p.action === "reject";
+      if(deny && r.close && !r.init){
+        r.notes.push({level:"warn", text:"Logs session-close on a " + p.action + ". A denied flow never becomes a session, so there is no close to log - only session-init records the drop."});
+      }
+      if(deny && !r.init && r.hits){
+        r.notes.push({level:"info", text:plural(r.hits, "lookup") + " hit this " + p.action + " since the counters were cleared, and none of " +
+          (r.hits === 1 ? "it is" : "them are") + " logged."});
+      }
+      if(p.action === "permit" && r.init && !r.close){
+        r.notes.push({level:"info", text:"Logs the open only. Bytes, packets and duration are in the session-close record."});
+      }
+    });
+
+    var logging = rows.filter(function(r){ return !r.p.inactive && (r.init || r.close); });
+    var receivers = L.streams.concat(SL.dests).filter(function(d){ return !d.inactive && d.sessions !== "no"; });
+
+    if(L.disabled && logging.length){
+      notes.push({level:"bad", text:"security log is disabled, so the session logs " + plural(logging.length, "policy", "policies") +
+        " ask for are never generated."});
+    }
+    if((L.mode === "stream" || L.mode === "stream-event") && !L.sourceAddress && !L.sourceInterface &&
+       L.streams.some(function(s){ return s.host; })){
+      notes.push({level:"warn", text:"Stream mode with no security log source-address or source-interface. Stream mode needs one, and without it the streams are not sent."});
+    }
+    if(L.sourceAddress && ctx.ifx.order.length && !srcIf){
+      notes.push({level:"warn", text:"Security log source-address " + L.sourceAddress + " is not configured on any interface in this paste."});
+    }
+    if(L.mode === "event" && L.streams.length){
+      notes.push({level:"warn", text:"Mode is event, so " + plural(L.streams.length, "configured stream") + " " + isAre(L.streams.length) +
+        " not used. Event-mode session logs go to the routing engine and out through system syslog."});
+    }
+    if(!L.mode && L.streams.length){
+      notes.push({level:"info", text:"No security log mode is set, so the platform default decides whether the streams or system syslog carry session logs. Set the mode explicitly, or check it with show configuration security log on the box."});
+    }
+    // With neither hierarchy in the paste there is nothing to judge - the paste may
+    // just be the policies. Say so below instead of claiming the logs are lost.
+    if(logging.length && !L.disabled && !receivers.length && (L.present || SL.present)){
+      notes.push({level:"warn", text:plural(logging.length, "policy", "policies") + " ask for session logs, but nothing in this paste sends them anywhere: " +
+        (L.mode === "stream" ? "no stream has a host that takes info." :
+         L.mode === "event"  ? "no system syslog file or host takes any or user messages at info." :
+         "no security log stream, and no system syslog file or host taking any or user messages at info.") +
+        " They are generated and dropped."});
+    }
+
+    // Traffic that matches no policy goes to the default policy, which never logs.
+    var pairs = [], lastCatch = {};
+    pols.forEach(function(p){
+      if(p.global) return;
+      var k = p.from + " " + p.to;
+      push(pairs, k);
+      if(p.inactive || lastCatch[k]) return;
+      if(isCatchAll(p)) lastCatch[k] = p;
+    });
+    var globalDenyLogged = pols.some(function(p){
+      return p.global && !p.inactive && isCatchAll(p) && (p.action === "deny" || p.action === "reject") &&
+             p.log.indexOf("session-init") !== -1;
+    });
+    var unlogged = pairs.filter(function(k){
+      var c = lastCatch[k];
+      return !(c && (c.action === "deny" || c.action === "reject") && c.log.indexOf("session-init") !== -1) &&
+             !(c && c.action === "permit");
+    });
+    if(pols.length && !globalDenyLogged && (ctx.defaultPolicy || "deny-all") !== "permit-all" && unlogged.length){
+      notes.push({level:"info", text:unlogged.length + " of " + plural(pairs.length, "zone pair") +
+        " end without a logged catch-all deny" + (unlogged.length <= 4 ? " (" + unlogged.map(function(k){ return k.replace(" ", " → "); }).join(", ") + ")" : "") +
+        ". Traffic that falls through to the default policy is dropped without a log. To see those drops, end the pair with a deny on any/any/any with log session-init, or add one as a global policy."});
+    }
+
+    // Logging set in a group reaches the policies only where the group is applied.
+    var grpLog = uniq(flat.filter(function(r){
+      return r.grp && r.p.indexOf("policies") !== -1 && r.p.indexOf("log") !== -1;
+    }).map(function(r){ return r.grp; }));
+    var viaGroups = uniq(rows.map(function(r){ return r.initFrom; }).concat(rows.map(function(r){ return r.closeFrom; })).filter(Boolean));
+    if(viaGroups.length){
+      var nVia = rows.filter(function(r){ return r.initFrom || r.closeFrom; }).length;
+      notes.push({level:"info", text:plural(nVia, "policy", "policies") +
+        (nVia === 1 ? " logs" : " log") + " because of group " + viaGroups.join(", ") + ", applied here the way Junos inherits it. Paste show configuration | display inheritance to have the device confirm it."});
+    }
+    var idle = grpLog.filter(function(g){ return ctx.reached.indexOf(g) === -1; });
+    if(idle.length){
+      notes.push({level:"warn", text:"Group " + idle.join(", ") + " sets policy logging but reaches no policy here - it is applied nowhere, or its wildcards match no zone pair or policy in this configuration. Policies that look like they should log through it do not."});
+    }
+    if(stray.length){
+      notes.push({level:"info", text:"The hit-count output names " + plural(stray.length, "policy", "policies") + " this configuration does not have: " +
+        stray.slice(0,6).join(", ") + (stray.length > 6 ? ", and " + (stray.length-6) + " more" : "") +
+        ". They may come from an apply-group, a logical system, or a different box."});
+    }
+    if(pols.length && !L.present && !SL.present){
+      notes.push({level:"info", text:"No security log and no system syslog in this paste, so where logs go cannot be shown."});
+    }
+
+    var hitTotal = 0;
+    for(i=0;i<hits.length;i++) hitTotal += hits[i].count;
+
+    return { sec:L, syslog:SL, rows:rows, notes:notes, hits:hits.length, hitTotal:hitTotal,
+             haveHits:hits.length > 0, stray:stray, pairs:pairs.length, unloggedPairs:unlogged };
+  }
+
   /* ============================ MODEL ============================ */
 
   function mergeRoutes(cfgRoutes, opRoutes, opTables){
@@ -2590,68 +3185,124 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
   // capture that was supplied twice, so it has to be exact - anything looser would
   // silently swallow a real second path.
   function routeKey(r){
-    return [r.node, r.table, r.prefix, r.protocol, r.pref, r.metric, r.marker, r.src,
+    return [r.table, r.prefix, r.protocol, r.pref, r.metric, r.marker, r.src,
             r.paths.map(function(pa){ return pa.kind + ":" + pa.iface + ":" + pa.nh; }).join(",")
            ].join("|");
   }
 
-  // The extra argument carries the optional operational panes. Each source is parsed
-  // on its own rather than as one blob, for two reasons: every box can then say what
-  // it alone contributed, and a capture supplied twice - pasted into the configuration
-  // box and again into a pane, which is exactly what happens with a session capture or
-  // an RSI - is counted once instead of doubling the route table.
-  function parseConfig(text, extra){
-    text  = String(text == null ? "" : text);
-    extra = extra || {};
-    var sources = [
-      { key:"config",    text:text },
-      { key:"routePane", text:String(extra.routes == null ? "" : extra.routes) },
-      { key:"saPane",    text:String(extra.sas    == null ? "" : extra.sas) },
-      { key:"ikePane",   text:String(extra.ike    == null ? "" : extra.ike) }
-    ];
-    var all = sources.map(function(x){ return x.text; }).join("\n");
+  // One box takes everything: the configuration and any operational captures, in any
+  // order. Each parser picks out only what it recognises, so nothing needs to be told
+  // which part is which. A capture pasted twice - easy to do when a session log
+  // already holds it - is counted once rather than doubling the route table, and the
+  // repeat is reported.
+  // Node banners carry forward as a parser reads, so a node0: printed by one command
+  // would tag the next command's output too - and a capture pasted twice would no
+  // longer look like itself. A CLI prompt ends one command's output, so the
+  // operational parsers read one prompt-delimited chunk at a time.
+  function captures(text){
+    var out = [], cur = [];
+    String(text).replace(/\r\n?/g,"\n").split("\n").forEach(function(ln){
+      if(PROMPT_RE.test(ln) && cur.length){ out.push(cur.join("\n")); cur = []; }
+      cur.push(ln);
+    });
+    if(cur.length) out.push(cur.join("\n"));
+    return out;
+  }
 
-    var flat  = flatten(all);
+  // The command a chunk was printed by, when it starts with an operational-mode
+  // prompt. Configuration-mode (#) prompts and chunks with no prompt give "".
+  function chunkCommand(chunk){
+    var m = String(chunk).match(/^\s*[\w.-]+@[\w.-]+\s*>\s*(.*?)\s*$/m);
+    return m && chunk.replace(/^\s+/, "").indexOf(m[0].replace(/^\s+/, "")) === 0 ? m[1] : "";
+  }
+  // Operational output is read by its own parsers and kept away from the config
+  // flattener: a stray brace or bracket in it would otherwise re-nest or swallow the
+  // configuration that follows. show configuration (however abbreviated) is config.
+  function isOpChunk(chunk){
+    var c = chunkCommand(chunk).toLowerCase();
+    return !!c && !/^sh(o|ow)?\s+conf/.test(c) && !/^file\s+show\b/.test(c);
+  }
+
+  // Configuration pasted straight after a capture, with no prompt of its own, sits in
+  // that capture's chunk. A line that can only begin configuration - a top-level
+  // hierarchy at column 0, a set line, version, the commit header - marks where it starts.
+  var CFG_START_RE = /^(?:set|deactivate)\s+\S|^version\s+\S+;\s*$|^## Last (?:commit|changed)/;
+
+  function configPart(chunk){
+    if(!isOpChunk(chunk)) return chunk;
+    var lines = chunk.split("\n");
+    for(var i=1;i<lines.length;i++){
+      if(TOP_RE.test(lines[i]) || CFG_START_RE.test(lines[i])) return lines.slice(i).join("\n");
+    }
+    return "";
+  }
+
+  // A saved terminal log is not what the screen showed. Escape sequences, NUL padding,
+  // backspaces from corrected typing and the pager's ---(more)--- all land in the file
+  // and would otherwise be read as part of a statement.
+  function cleanText(t){
+    t = String(t == null ? "" : t)
+      .replace(/^\uFEFF/, "")
+      .replace(/\u0000/g, "")
+      .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "")      // OSC (window title)
+      .replace(/\u001b\[[0-9;?]*[ -\/]*[@-~]/g, "")                      // CSI (cursor, erase, colour)
+      .replace(/\u001b[()][A-Za-z0-9]|\u001b[=>78DEHMc]/g, "")
+      .replace(/-{2,}\s*\(more(?:\s+\d+%)?\)\s*-{2,}(?:\[[^\]\n]*\])?/g, "");
+    while(/[^\n\u0008]\u0008/.test(t)) t = t.replace(/[^\n\u0008]\u0008/g, "");
+    return t.replace(/\u0008/g, "");
+  }
+
+  function parseConfig(text){
+    text = cleanText(text);
+
+    // Each chunk is flattened on its own, so nothing - an open brace, a list, a node
+    // banner - carries across a prompt from one command's output into the next.
+    var flat = [];
+    captures(text).forEach(function(chunk){
+      var c = configPart(chunk);
+      if(c) flat = flat.concat(flatten(c));
+    });
+    var grp = applyGroups(flat);
+    flat = grp.flat;
     var ifx   = parseInterfaces(flat);
     var zones = zonesFromFlat(flat);
     var inst  = instancesFromFlat(flat);
     var cr    = configRoutes(flat, ifx, inst);
 
-    var opRoutes = [], opTables = [], sas = [], ikes = [];
-    var opSources = { routes:{}, sas:{}, ike:{} };
-    var opDuplicates = { routes:0, sas:0, ike:0 };
-    var seenR = {}, seenS = {}, seenK = {};
+    var opRoutes = [], opTables = [], sas = [], ikes = [], hits = [];
+    var opDuplicates = { routes:0, sas:0, ike:0, hits:0 };
+    var seenR = {}, seenS = {}, seenK = {}, seenH = {};
 
-    sources.forEach(function(src){
-      if(!src.text.trim()) return;
-      var nR = 0, nS = 0, nK = 0;
+    // Keys leave the node out and this decides it. node0 and node1 are two answers and
+    // both count. A copy with no node against one with a node is the same capture: a
+    // cluster banner from an earlier command, pasted with no prompt between, tagged
+    // the second copy - so it is a repeat, not a second route.
+    function repeat(seen, k, node){
+      var nodes = seen[k];
+      if(!nodes){ seen[k] = [node || ""]; return false; }
+      if(nodes.indexOf(node || "") !== -1 || !node || nodes.indexOf("") !== -1) return true;
+      nodes.push(node);
+      return false;
+    }
 
-      parseRoutes(src.text).routes.forEach(function(r){
-        nR++;
-        var k = routeKey(r);
-        if(seenR[k]){ opDuplicates.routes++; return; }
-        seenR[k] = 1;
+    captures(text).forEach(function(chunk){
+      parseRoutes(chunk).routes.forEach(function(r){
+        if(repeat(seenR, routeKey(r), r.node)){ opDuplicates.routes++; return; }
         opRoutes.push(r);
         if(r.table) push(opTables, r.table);
       });
-      parseSAs(src.text).forEach(function(sa){
-        nS++;
-        var k = (sa.node||"") + "|" + sa.id + "|" + sa.name;
-        if(seenS[k]){ opDuplicates.sas++; return; }
-        seenS[k] = 1;
+      parseSAs(chunk).forEach(function(sa){
+        if(repeat(seenS, sa.id + "|" + sa.name, sa.node)){ opDuplicates.sas++; return; }
         sas.push(sa);
       });
-      parseIKE(src.text).forEach(function(kk){
-        nK++;
-        var k = (kk.node||"") + "|" + (kk.index||"") + "|" + (kk.peer||"") + "|" + (kk.gwName||"");
-        if(seenK[k]){ opDuplicates.ike++; return; }
-        seenK[k] = 1;
+      parseIKE(chunk).forEach(function(kk){
+        if(repeat(seenK, (kk.index||"") + "|" + (kk.peer||"") + "|" + (kk.gwName||""), kk.node)){ opDuplicates.ike++; return; }
         ikes.push(kk);
       });
-
-      opSources.routes[src.key] = nR;
-      opSources.sas[src.key]    = nS;
-      opSources.ike[src.key]    = nK;
+      parseHitCount(chunk).forEach(function(h){
+        if(repeat(seenH, [h.lsys, h.index, h.from, h.to, h.name, h.count].join("|"), h.node)){ opDuplicates.hits++; return; }
+        hits.push(h);
+      });
     });
 
     var op = { routes:opRoutes, tables:opTables };
@@ -2728,22 +3379,27 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
       c.liveNotes = liveVpnNotes(c);
     });
 
+    var dynamicProtocols = ["ospf","ospf3","bgp","isis","rip","ripng"].filter(function(p){
+      return has(flat, ["protocols", p]);
+    });
+    var logging = buildLogging(flat, pols, hits, { ifx:ifx, legs:legs, dynamicProtocols:dynamicProtocols,
+                                                   defaultPolicy:defaultPolicy(flat), reached:grp.reached });
+
     return {
       flat:flat, host:host, version:ver,
       ifx:ifx, zones:zones, inst:inst,
       routes:routes, tables:tables, legs:legs,
       cfgRouteCount: cr.routes.length, opRouteCount: op.routes.length,
-      opSources:opSources, opDuplicates:opDuplicates,
+      opDuplicates:opDuplicates,
       supersededRoutes: merged.superseded, missingStatics: merged.missing,
       unresolvedNh: cr.unresolved,
       policies:pols, defaultPolicy:defaultPolicy(flat),
       books:books, apps:apps, vpnCfg:vcfg, vpns:cards,
       sas:sas, orphanSAs:orphanSAs, ikes:ikes, orphanIKE:orphanIKE,
-      ifaceZone:ifaceZone,
+      ifaceZone:ifaceZone, hitRows:hits, logging:logging,
       groups: uniq(flat.filter(function(r){ return !!r.grp; }).map(function(r){ return r.grp; })),
-      dynamicProtocols: ["ospf","ospf3","bgp","isis","rip","ripng"].filter(function(p){
-        return has(flat, ["protocols", p]);
-      }),
+      groupInfo: { inherited:grp.inherited, applied:grp.applied, reached:grp.reached, unapplied:grp.unapplied, nodeGroup:grp.nodeGroup },
+      dynamicProtocols: dynamicProtocols,
       stmtCount: flat.length
     };
   }
@@ -2754,16 +3410,19 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     flat:[], host:"", version:"", ifx:{units:{}, order:[], phys:{}, physOrder:[]},
     zones:[], inst:{map:{},order:[]}, routes:[], tables:[], legs:[],
     cfgRouteCount:0, opRouteCount:0, supersededRoutes:0, missingStatics:[], unresolvedNh:[],
-    opSources:{routes:{},sas:{},ike:{}}, opDuplicates:{routes:0,sas:0,ike:0},
+    opDuplicates:{routes:0,sas:0,ike:0,hits:0},
     policies:[], defaultPolicy:"", books:{books:{},order:[]}, apps:{apps:{},sets:{}},
     vpnCfg:{order:[]}, vpns:[], sas:[], orphanSAs:[], ikes:[], orphanIKE:[],
-    ifaceZone:{}, groups:[],
+    ifaceZone:{}, groups:[], hitRows:[],
+    groupInfo:{ inherited:0, applied:[], reached:[], unapplied:[], nodeGroup:false },
+    logging:{ sec:{streams:[], mode:"", file:null}, syslog:{dests:[]}, rows:[], notes:[], hits:0, hitTotal:0,
+              haveHits:false, stray:[], pairs:0, unloggedPairs:[] },
     dynamicProtocols:[], stmtCount:0
   };
 
   var state = {
     raw:"", m:EMPTY, view:"overview", filter:"", activeOnly:true, problemsOnly:false,
-    expanded:{}, openChips:{}, fileName:"", fileMode:false, built:false,
+    expanded:{}, openChips:{}, fileNames:[], fileMode:false, built:false,
     flowAuto:{from:false, to:false}, flowCmd:null, flowRes:null
   };
 
@@ -2825,7 +3484,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     return state.m.policies.filter(function(p){
       if(state.activeOnly && p.inactive) return false;
       if(state.problemsOnly && !hasProblem(p.notes)) return false;
-      return hit([p.from, p.to, p.name, p.action, p.tunnel, p.desc]
+      return hit([p.from, p.to, p.name, p.action, p.tunnel, p.desc, logText(p)]
         .concat(p.src).concat(p.dst).concat(p.app));
     });
   }
@@ -2861,6 +3520,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     m.vpns.forEach(function(v){ add(vpnAllNotes(v)); });
     m.orphanSAs.forEach(function(sa){ add(sa.notes); });
     m.orphanIKE.forEach(function(k){ add(k.notes); });
+    add(logAllNotes(m.logging));
     add(globalNotes(m));
     return n;
   }
@@ -2893,9 +3553,11 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     if(m.opRouteCount) chips.push('<span class="chip live">show route: ' + plural(m.opRouteCount, "route") + '</span>');
     if(m.sas.length)   chips.push('<span class="chip live">ipsec security-associations: ' + plural(m.sas.length, "SA") + '</span>');
     if(m.ikes.length)  chips.push('<span class="chip live">ike security-associations: ' + plural(m.ikes.length, "SA") + '</span>');
+    if(m.hitRows.length) chips.push('<span class="chip live">policies hit-count: ' + plural(m.hitRows.length, "policy", "policies") + '</span>');
     var fromCfg = m.routes.filter(function(r){ return r.src === "config"; }).length;
     if(fromCfg) chips.push('<span class="chip cfg">' + plural(fromCfg, "route") + ' derived from config</span>');
-    if(m.groups.length) chips.push('<span class="chip">' + plural(m.groups.length, "config group") + ' not applied</span>');
+    if(m.groupInfo.inherited) chips.push('<span class="chip cfg">' + plural(m.groupInfo.inherited, "statement") + ' inherited from groups</span>');
+    if(m.groupInfo.unapplied.length) chips.push('<span class="chip">' + plural(m.groupInfo.unapplied.length, "config group") + ' applied nowhere</span>');
     if(m.host) chips.push('<span class="chip">' + esc(m.host) + '</span>');
     $("srcline").innerHTML = chips.join("");
   }
@@ -2927,14 +3589,24 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     if(m.opDuplicates.routes) dupes.push(plural(m.opDuplicates.routes, "route"));
     if(m.opDuplicates.sas)    dupes.push(plural(m.opDuplicates.sas, "IPsec SA"));
     if(m.opDuplicates.ike)    dupes.push(plural(m.opDuplicates.ike, "IKE SA"));
+    if(m.opDuplicates.hits)   dupes.push(plural(m.opDuplicates.hits, "hit-count row"));
     if(dupes.length){
       out.push({level:"info", text:"The same capture appears more than once in the input: " +
-        dupes.join(", ") + " were repeated and have been counted once. The optional panes are " +
-        "only needed for output the configuration paste does not already contain."});
+        dupes.join(", ") + " were repeated and have been counted once."});
     }
-    if(m.groups.length){
-      out.push({level:"info", text:"Statements under groups " + m.groups.join(", ") +
-        " are templates and are read but never applied here, so nothing inherited through apply-groups appears in this report."});
+    var G = m.groupInfo;
+    if(G.inherited){
+      out.push({level:"info", text:plural(G.inherited, "statement") + " inherited from group " + G.applied.join(", ") +
+        " " + isAre(G.inherited) + " included, applied the way Junos does: wildcards match only names the configuration has, and an explicit value wins. " +
+        "Paste show configuration | display inheritance to have the device do the expansion instead."});
+    }
+    if(G.unapplied.length){
+      out.push({level:"info", text:"Group " + G.unapplied.join(", ") + " " + isAre(G.unapplied.length) +
+        " defined but applied nowhere in this configuration, or " + (G.unapplied.length === 1 ? "its wildcards match" : "their wildcards match") +
+        " nothing, so " + (G.unapplied.length === 1 ? "it changes" : "they change") + " nothing here."});
+    }
+    if(G.nodeGroup){
+      out.push({level:"info", text:"apply-groups ${node} applies node0 or node1 depending on which cluster member reads it, so neither is applied here. Paste show configuration | display inheritance from the node you care about to include it."});
     }
     if(m.policies.length && !m.books.order.length){
       out.push({level:"info", text:"No address book in the paste, so policy address names are shown as written and cannot be resolved to prefixes."});
@@ -2995,13 +3667,24 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
       return vpnAllNotes(c).some(function(n){ return /Deprecated|Legacy|Diffie/.test(n.text); });
     }).length;
 
+    var LG = m.logging;
+    var sysHosts = LG.syslog.dests.filter(function(d){ return d.kind === "host"; }).length;
+    var sysFiles = LG.syslog.dests.filter(function(d){ return d.kind === "file"; }).length;
+    var logPols  = LG.rows.filter(function(r){ return !r.p.inactive && (r.init || r.close); }).length;
+    var denyQuiet = LG.rows.filter(function(r){
+      return !r.p.inactive && (r.p.action === "deny" || r.p.action === "reject") && !r.init;
+    }).length;
+    var nowhere = LG.notes.some(function(n){ return /nothing in this paste sends them anywhere|never generated/.test(n.text); });
+
     var cards = [
       ovCard("Device", "", [
         ["Host name", m.host || ""],
         ["Junos version", m.version || ""],
         ["Statements parsed", m.stmtCount],
         ["Routing instances", m.inst.order.length, m.inst.order.length ? "" : "zero"],
-        ["Config groups (not applied)", m.groups.length, m.groups.length ? "warnv" : "zero"]
+        ["Config groups", m.groups.length, m.groups.length ? "" : "zero"],
+        ["Statements inherited from groups", m.groupInfo.inherited, m.groupInfo.inherited ? "" : "zero"],
+        ["Groups applied nowhere", m.groupInfo.unapplied.length, m.groupInfo.unapplied.length ? "warnv" : "zero"]
       ]),
       ovCard("Interfaces", "ifaces", [
         ["Physical ports", m.ifx.physOrder.length],
@@ -3048,6 +3731,15 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
         ["Live IKE SAs in the paste", m.ikes.length, m.ikes.length ? "" : "zero"],
         ["Phase 1 not up", ikeDown, ikeDown ? "badv" : "zero"],
         ["With deprecated crypto", weakVpn, weakVpn ? "warnv" : "zero"]
+      ]),
+      ovCard("Logging", "logging", [
+        ["Security log mode", LG.sec.mode || (LG.sec.present ? "not set" : "")],
+        ["Security log streams", LG.sec.streams.length, LG.sec.streams.length ? "" : "zero"],
+        ["Syslog hosts", sysHosts, sysHosts ? "" : "zero"],
+        ["Syslog files", sysFiles, sysFiles ? "" : "zero"],
+        ["Policies logging", logPols, logPols ? "" : "zero"],
+        ["Deny policies not logging drops", denyQuiet, denyQuiet ? "warnv" : "zero"],
+        ["Session logs going nowhere", nowhere ? "yes" : "no", nowhere ? "badv" : "zero"]
       ])
     ];
 
@@ -3256,7 +3948,45 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 
   /* ============================ POLICY TABLE ============================ */
 
-  var POL_COLS = ["#","From zone","To zone","Policy","Source","Destination","Application","Action"];
+  var POL_COLS = ["#","From zone","To zone","Policy","Source","Destination","Application","Action","Logging"];
+
+  // What a policy logs, in what it means rather than the keyword alone, inherited flags
+  // included - applyGroups() has already put them in the model and logFrom names the
+  // group each came from. A deny is only recorded by session-init; session-close on one
+  // never fires, so it is shown as such rather than as logging.
+  function logParts(p){
+    var deny = p.action === "deny" || p.action === "reject";
+    var out = [];
+    if(p.log.indexOf("session-init") !== -1){
+      out.push({ kw:"session-init", what: deny ? "denied flows" : "session start",
+                 cls:"on", group:p.logFrom["session-init"] || "" });
+    }
+    if(p.log.indexOf("session-close") !== -1){
+      out.push({ kw:"session-close", what: deny ? "never fires on a " + p.action : "session end + bytes",
+                 cls: deny ? "warn" : "on", group:p.logFrom["session-close"] || "" });
+    }
+    if(deny && p.log.indexOf("session-init") === -1){
+      out.push({ kw:"", what: out.length ? "drops not logged" : "not logged - drops unrecorded", cls:"warn", group:"" });
+    } else if(!out.length){
+      out.push({ kw:"", what:"not logged", cls:"off", group:"" });
+    }
+    return out;
+  }
+  function inhTitle(g){ return "Inherited from config group " + g + " through apply-groups, not configured on the policy itself"; }
+  function inhHTML(g){ return '<span class="inh" title="' + esc(inhTitle(g)) + '">inherited \u00b7 ' + esc(g) + '</span>'; }
+
+  function logText(p){
+    return logParts(p).map(function(x){
+      return x.what + (x.kw ? " [" + x.kw + (x.group ? ", inherited from " + x.group : "") + "]" : "");
+    }).join("; ");
+  }
+  function logCellHTML(p){
+    return logParts(p).map(function(x){
+      return '<div class="logline ' + x.cls + '"><span class="what">' + esc(x.what) + '</span>' +
+        (x.kw ? '<span class="kw">' + esc(x.kw) + '</span>' : '') +
+        (x.group ? inhHTML(x.group) : '') + '</div>';
+    }).join("");
+  }
 
   function chipHTML(item, path){
     var cls = "pchip " + (item.kind === "any" ? "any" : item.kind);
@@ -3297,7 +4027,10 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 
   function renderPolicyTable(){
     var list = visiblePolicies();
-    var head = "<thead><tr>" + POL_COLS.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead>";
+    var head = "<thead><tr>" + POL_COLS.map(function(c){
+      return c === "Logging" ? "<th title='What the policy logs. A dashed tag marks a flag inherited from a config group.'>" + esc(c) + "</th>"
+                             : "<th>" + esc(c) + "</th>";
+    }).join("") + "</tr></thead>";
     if(!list.length){
       $("table").innerHTML = head + "<tbody><tr><td colspan='" + POL_COLS.length + "' class='dim'>" +
         (state.m.policies.length ? "No policies match the current filter." :
@@ -3309,8 +4042,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
       var idx = p.from + "/" + p.to + "/" + p.name;
       var actCls = p.action === "permit" ? "okc" : (p.action ? "badc" : "warnc");
       var action = (p.action || "no action") +
-        (p.tunnel ? " tunnel " + p.tunnel : "") +
-        (p.log.length ? " +log" : "") + (p.count ? " +count" : "");
+        (p.tunnel ? " tunnel " + p.tunnel : "") + (p.count ? " +count" : "");
       var row = "<tr" + (p.inactive ? " class='inactive'" : "") + ">" +
         "<td class='nowrap dim'>" + p.seq + "</td>" +
         "<td class='nowrap'>" + esc(p.from) + "</td>" +
@@ -3320,6 +4052,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
         "<td>" + cellHTML(it.dst, "d" + idx) + (p.dstExcluded ? "<div class='sub'>excluded</div>" : "") + "</td>" +
         "<td>" + cellHTML(it.app, "a" + idx) + "</td>" +
         "<td class='nowrap " + actCls + "'>" + esc(action) + "</td>" +
+        "<td class='nowrap'>" + logCellHTML(p) + "</td>" +
       "</tr>";
       if(!(p.notes||[]).length) return row;
       return row + "<tr><td colspan='" + POL_COLS.length + "' style='padding:0'>" +
@@ -3611,6 +4344,203 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     }).join("");
 
     $("cards").innerHTML = cfgCards + orphanCards + ikeCards;
+  }
+
+  /* ============================ LOGGING ============================ */
+
+  var SESS_TAG = { yes:"session logs", maybe:"session logs?", filtered:"session logs?", no:"no session logs" };
+
+  // Streams and syslog destinations are different objects in the config but answer
+  // one question here, so both are flattened onto one row shape for display.
+  function logDests(){
+    var L = state.m.logging, S = L.sec, out = [];
+    S.streams.forEach(function(s){
+      out.push({ d:s, label:"stream",
+        target: s.host ? s.host + (s.port ? ":" + s.port : "") : (s.file ? "file " + (s.file.name || "") : "-"),
+        sub: s.name + (s.routingInstance ? " \u00b7 instance " + s.routingInstance : "") +
+             (s.from.length ? " \u00b7 group " + s.from.join(", ") : ""),
+        carry: [s.severity ? "severity " + s.severity : "",
+                s.categories.length ? "category " + s.categories.join(" ") : "",
+                s.filters.length ? "filter " + s.filters.join(" ") : ""].filter(Boolean).join(" · "),
+        fmt: [s.format || S.format, s.transport || S.transport].filter(Boolean).join(" / ") });
+    });
+    L.syslog.dests.forEach(function(d){
+      out.push({ d:d, label:"syslog " + d.kind,
+        target: d.kind === "console" ? "console" : d.name + (d.port ? ":" + d.port : ""),
+        sub: [d.routingInstance ? "instance " + d.routingInstance : "",
+              d.sourceAddress ? "from " + d.sourceAddress : "",
+              d.from.length ? "group " + d.from.join(", ") : ""].filter(Boolean).join(" · "),
+        carry: d.levels.map(function(l){ return l.facility + " " + l.severity; }).join(", ") +
+               (d.match.length ? " · match " + d.match.join(" ") : ""),
+        fmt: [d.transport, d.structured ? "structured-data" : "", d.facilityOverride ? "as " + d.facilityOverride : ""].filter(Boolean).join(" / ") });
+    });
+    return out;
+  }
+
+  function visibleLogDests(){
+    return logDests().filter(function(r){
+      if(state.activeOnly && r.d.inactive) return false;
+      if(state.problemsOnly && !hasProblem(r.d.notes)) return false;
+      return hit([r.label, r.target, r.sub, r.carry, r.fmt, r.d.via]);
+    });
+  }
+  function visibleLogRows(){
+    return state.m.logging.rows.filter(function(r){
+      var p = r.p;
+      if(state.activeOnly && p.inactive) return false;
+      if(state.problemsOnly && !hasProblem(r.notes)) return false;
+      return hit([p.from, p.to, p.name, p.action].concat(p.log));
+    });
+  }
+  function logAllNotes(L){
+    var out = L.notes.slice();
+    L.sec.streams.forEach(function(s){ out = out.concat(s.notes); });
+    L.syslog.dests.forEach(function(d){ out = out.concat(d.notes); });
+    L.rows.forEach(function(r){ out = out.concat(r.notes); });
+    return out;
+  }
+
+  function destHTML(r){
+    var d = r.d, viaCls = !d.path ? "" : (d.path.kind === "ok" && !d.path.own ? "known" : "warn");
+    return '<div class="dest' + (d.inactive ? ' inactive' : '') + '">' +
+        '<div><span class="eyebrow">' + esc(r.label) + '</span>' +
+          (d.kind === "user" || d.kind === "console" ? '' :
+            '<div style="margin-top:4px"><span class="tag sess-' + esc(d.sessions) + '"' +
+            (d.why ? ' title="' + esc(d.why) + '"' : '') + '>' + esc(SESS_TAG[d.sessions] || "") + '</span></div>') +
+          (d.inactive ? '<div style="margin-top:4px"><span class="tag func">inactive</span></div>' : '') +
+        '</div>' +
+        '<div class="tgt">' + esc(r.target) + (r.sub ? '<div class="sub">' + esc(r.sub) + '</div>' : '') + '</div>' +
+        '<div class="carry">' + esc(r.carry || "-") + (r.fmt ? '<div class="sub">' + esc(r.fmt) + '</div>' : '') +
+          (d.why && d.sessions !== "yes" ? '<div class="sub">' + esc(d.why) + '</div>' : '') + '</div>' +
+        '<div class="via ' + viaCls + '">' + esc(d.via || (d.kind === "host" || d.kind === "stream" ? "-" : "on the box")) + '</div>' +
+      '</div>' +
+      (d.notes.length ? '<div class="dest-notes">' + d.notes.map(noteHTML).join("") + '</div>' : '');
+  }
+
+  function logCols(){
+    var c = ["#","From zone","To zone","Policy","Action","Session init","Session close"];
+    if(state.m.logging.haveHits) c.push("Hits");
+    return c;
+  }
+  function logRow(r){
+    var p = r.p, row = [ String(p.seq), p.from, p.to, p.name, p.action || "no action",
+                         r.init ? "yes" : "no", r.close ? "yes" : "no" ];
+    if(state.m.logging.haveHits) row.push(r.hits === null ? "" : String(r.hits));
+    return row;
+  }
+
+  function renderLogging(){
+    var m = state.m, L = m.logging, S = L.sec;
+    var dests = visibleLogDests(), rows = visibleLogRows();
+    var all = logDests();
+    var logging = L.rows.filter(function(r){ return !r.p.inactive && (r.init || r.close); });
+    var receivers = all.filter(function(r){ return !r.d.inactive && r.d.sessions === "yes"; });
+    var maybes    = all.filter(function(r){ return !r.d.inactive && (r.d.sessions === "maybe" || r.d.sessions === "filtered"); });
+
+    var stCls, stTxt;
+    if(S.disabled)             { stCls = "down"; stTxt = "disabled"; }
+    else if(receivers.length)  { stCls = "up";   stTxt = plural(receivers.length, "destination"); }
+    else if(maybes.length)     { stCls = "part"; stTxt = "undetermined"; }
+    else if(logging.length)    { stCls = "down"; stTxt = "nowhere"; }
+    else                       { stCls = "idle"; stTxt = "not logging"; }
+
+    var deny = L.rows.filter(function(r){ return !r.p.inactive && (r.p.action === "deny" || r.p.action === "reject"); });
+    var attrRows = [
+      ["Mode", S.mode || (S.present ? "not set" : "")],
+      ["Set through group", S.from.join(", ")],
+      ["Format", S.format],
+      ["Source address", S.sourceAddress ? S.sourceAddress + (S.sourceIf ? " (" + S.sourceIf + ")" : "") : ""],
+      ["Source interface", S.sourceInterface],
+      ["Transport", S.transport],
+      ["TLS profile", S.tlsProfile],
+      ["UTC timestamps", S.utc ? "yes" : ""],
+      ["On-box report", S.report ? "yes" : ""],
+      ["Local security log file", S.file ? [S.file.path, S.file.name].filter(Boolean).join("/") || "set" : ""],
+      ["Syslog source address", m.logging.syslog.sourceAddress],
+      ["Policies logging session-init", String(logging.filter(function(r){ return r.init; }).length)],
+      ["Policies logging session-close", String(logging.filter(function(r){ return r.close; }).length)],
+      ["Deny policies logging drops", deny.length ? deny.filter(function(r){ return r.init; }).length + " of " + deny.length : ""]
+    ].filter(function(r){ return r[1]; });
+
+    var head = '<div class="card">' +
+      '<div class="card-head">' +
+        '<span class="card-name">Session logs</span>' +
+        (S.mode ? '<span class="tag">' + esc(S.mode) + ' mode</span>' : '') +
+        '<span class="spacer"></span>' +
+        '<span class="state ' + stCls + '">' + esc(stTxt) + '</span>' +
+      '</div>' +
+      (attrRows.length ? '<div class="attrs" style="border-top:0">' + attrRows.map(function(r){
+        return '<span class="attr">' + esc(r[0]) + ' <b>' + esc(r[1]) + '</b></span>';
+      }).join("") + '</div>' : '') +
+      (L.notes.length ? '<div class="notes">' + L.notes.map(noteHTML).join("") + '</div>' : '') +
+    '</div>';
+
+    var streamRows = dests.filter(function(r){ return r.d.kind === "stream"; });
+    var sysRows    = dests.filter(function(r){ return r.d.kind !== "stream"; });
+
+    function destCard(title, cmd, list, total, empty){
+      return '<div class="card">' +
+        '<div class="card-head">' +
+          '<span class="card-name">' + esc(title) + '</span>' +
+          '<span class="cmd">' + esc(cmd) + '</span>' +
+          '<span class="spacer"></span>' +
+          '<span class="count' + (total ? '' : ' zero') + '">' + plural(total, "destination") + '</span>' +
+        '</div>' +
+        (list.length ? list.map(destHTML).join("")
+          : '<div class="attrs" style="border-top:0"><span class="none">' +
+            esc(total ? "Nothing matches the current filter." : empty) + '</span></div>') +
+      '</div>';
+    }
+
+    var streamCard = destCard("Security log streams", "security log stream", streamRows, S.streams.length,
+      S.present ? "No streams configured." : "No security log hierarchy in this paste.");
+    var sysCard = destCard("System syslog", "system syslog", sysRows, L.syslog.dests.length,
+      "No system syslog hierarchy in this paste.");
+
+    // The policy table sits in its own card so its findings can stay beside it.
+    var cols = logCols();
+    var body;
+    if(!rows.length){
+      body = "<tr><td colspan='" + cols.length + "' class='dim'>" +
+        (L.rows.length ? "No policies match the current filter." : "No security policies in this paste.") + "</td></tr>";
+    } else {
+      body = rows.map(function(r){
+        var cells = logRow(r), p = r.p;
+        var deny = p.action === "deny" || p.action === "reject";
+        var tr = "<tr" + (p.inactive ? " class='inactive'" : "") + ">" + cells.map(function(cell, i){
+          var col = cols[i], cls = ["nowrap"], title = "";
+          if(col === "#") cls.push("dim");
+          if(col === "Action") cls.push(p.action === "permit" ? "okc" : (p.action ? "badc" : "warnc"));
+          if(col === "Session init")  cls.push(cell === "yes" ? "okc" : (deny ? "warnc" : "dim"));
+          if(col === "Session close") cls.push(cell === "yes" ? (deny ? "warnc" : "okc") : "dim");
+          var from = col === "Session init" ? r.initFrom : (col === "Session close" ? r.closeFrom : "");
+          if(col === "Hits"){
+            cls.push(cell === "" ? "dim" : "inc");
+            var nodes = Object.keys(r.nodes);
+            if(nodes.length > 1) title = nodes.map(function(n){ return n + " " + r.nodes[n]; }).join(", ");
+          }
+          return "<td class='" + cls.join(" ") + "'" + (title ? " title='" + esc(title) + "'" : "") + ">" +
+                 esc(cell === "no" ? "-" : (cell || "-")) +
+                 (from ? " " + inhHTML(from) : "") + "</td>";
+        }).join("") + "</tr>";
+        if(!r.notes.length) return tr;
+        return tr + "<tr><td colspan='" + cols.length + "' style='padding:0'><div class='notes' style='border-top:0'>" +
+               r.notes.map(noteHTML).join("") + "</div></td></tr>";
+      }).join("");
+    }
+    var polCard = '<div class="card">' +
+      '<div class="card-head">' +
+        '<span class="card-name">What each policy logs</span>' +
+        '<span class="cmd">then log</span>' +
+        '<span class="spacer"></span>' +
+        (L.haveHits ? '<span class="count routes">' + plural(L.hitTotal, "hit") + '</span>' : '') +
+      '</div>' +
+      '<div class="table-in"><table><thead><tr>' +
+        cols.map(function(c){ return "<th>" + esc(c) + "</th>"; }).join("") +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '</div>';
+
+    $("cards").innerHTML = head + streamCard + sysCard + polCard;
   }
 
   /* ============================ DIAGRAM ============================ */
@@ -3976,7 +4906,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
   function render(){
     renderSummary();
     var v = state.view;
-    var cardView  = (v === "zones" || v === "vpn");
+    var cardView  = (v === "zones" || v === "vpn" || v === "logging");
     var tableView = (v === "ifaces" || v === "routes" || v === "policies");
 
     $("ov").classList.toggle("on", v === "overview");
@@ -3993,12 +4923,14 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     else if(v === "policies") renderPolicyTable();
     else if(v === "vpn")      renderVpnCards();
     else if(v === "flow")     renderFlow();
+    else if(v === "logging")  renderLogging();
   }
 
   function setView(v){
     state.view = v;
     var ids = { overview:"viewOverview", ifaces:"viewIfaces", zones:"viewZones", routes:"viewRoutes",
-                diagram:"viewDiagram", policies:"viewPolicies", vpn:"viewVpn", flow:"viewFlow" };
+                diagram:"viewDiagram", policies:"viewPolicies", vpn:"viewVpn", flow:"viewFlow",
+                logging:"viewLogging" };
     for(var k in ids){
       if(ids.hasOwnProperty(k)) $(ids[k]).setAttribute("aria-pressed", String(k === v));
     }
@@ -4024,6 +4956,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 
   function exportCols(){
     if(state.view === "flow")     return FLOW_COLS;
+    if(state.view === "logging")  return logCols();
     if(state.view === "ifaces")   return IF_COLS;
     if(state.view === "policies") return POL_COLS;
     if(state.view === "vpn")      return VPN_COLS;
@@ -4043,6 +4976,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
       });
     }
     if(state.view === "ifaces") return ifaceRows();
+    if(state.view === "logging") return visibleLogRows().map(logRow);
     if(state.view === "policies"){
       return visiblePolicies().map(function(p){
         var it = policyItems(p);
@@ -4050,8 +4984,8 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
                  itemText(it.src) || "not set", itemText(it.dst) || "not set",
                  itemText(it.app) || "not set",
                  (p.action || "no action") + (p.tunnel ? " tunnel " + p.tunnel : "") +
-                 (p.log.length ? " +log" : "") + (p.count ? " +count" : "") +
-                 (p.inactive ? " (inactive)" : "") ];
+                 (p.count ? " +count" : "") + (p.inactive ? " (inactive)" : ""),
+                 logText(p) ];
       });
     }
     if(state.view === "vpn"){
@@ -4084,7 +5018,8 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     return h ? h + "-" : "";
   }
   function exportName(){
-    var base = { ifaces:"interfaces", policies:"security-policies", vpn:"ipsec-vpns", flow:"flow-match" }[state.view] || "routes-by-zone";
+    var base = { ifaces:"interfaces", policies:"security-policies", vpn:"ipsec-vpns", flow:"flow-match",
+                 logging:"logging" }[state.view] || "routes-by-zone";
     return hostSlug() + base;
   }
 
@@ -4106,9 +5041,30 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     return out.length ? out.join("\n") + "\n" : "";
   }
 
+  // Where the logs go is a list before the policy table is.
+  function loggingMarkdownHead(){
+    var L = state.m.logging, out = [];
+    out.push("Security log mode: " + (L.sec.mode || "not set"), "");
+    var d = logDests();
+    if(d.length){
+      out.push("| Destination | Target | Carries | Session logs | Leaves via |", "|---|---|---|---|---|");
+      d.forEach(function(r){
+        out.push("| " + [r.label, r.target + (r.sub ? " (" + r.sub + ")" : ""), r.carry || "-",
+          (r.d.sessions || "-") + (r.d.why ? " - " + r.d.why : ""), r.d.via || "-"].map(function(c){
+            return String(c).replace(/\|/g,"\\|");
+          }).join(" | ") + " |");
+      });
+      out.push("");
+    }
+    L.notes.forEach(function(n){ out.push("- " + (n.level === "info" ? "" : "**" + n.level + "** ") + n.text); });
+    if(L.notes.length) out.push("");
+    return out.join("\n") + "\n";
+  }
+
   function toMarkdown(){
     var cols = exportCols();
-    return (state.view === "flow" ? flowMarkdownHead() : "") + ["| " + cols.join(" | ") + " |", "|" + cols.map(function(){ return "---"; }).join("|") + "|"]
+    var lead = state.view === "flow" ? flowMarkdownHead() : (state.view === "logging" ? loggingMarkdownHead() : "");
+    return lead + ["| " + cols.join(" | ") + " |", "|" + cols.map(function(){ return "---"; }).join("|") + "|"]
       .concat(exportRows().map(function(r){
         return "| " + r.map(function(c){ return String(c || "-").replace(/\|/g,"\\|"); }).join(" | ") + " |";
       })).join("\n");
@@ -4176,74 +5132,57 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
       "<br><br><b>Top-level hierarchies seen:</b> <code>" + tops.map(esc).join("</code> <code>") + "</code>" +
       "<br><br>This report reads <code>interfaces</code>, <code>security zones</code>, <code>security policies</code>, " +
       "<code>security address-book</code>, <code>security ike</code>, <code>security ipsec</code>, " +
-      "<code>applications</code>, <code>routing-options</code> and <code>routing-instances</code>." + extra;
+      "<code>applications</code>, <code>routing-options</code>, <code>routing-instances</code>, " +
+      "<code>security log</code> and <code>system syslog</code>." + extra;
   }
 
   /* ============================ WIRING ============================ */
 
   function currentText(){ return state.fileMode ? state.raw : $("raw").value; }
-  function extraText(){
-    return { routes:$("rawRoutes").value, sas:$("rawSAs").value, ike:$("rawIKE").value };
+
+  // The optional commands, each ticked off when its output turns up in the box.
+  // The count is what the report is built from, so a repeat counted once shows once.
+  var CHECKS = [
+    { id:"ckRoutes", n:function(m){ return m.opRouteCount; },  one:"route",  many:"routes" },
+    { id:"ckSAs",    n:function(m){ return m.sas.length; },    one:"SA",     many:"SAs" },
+    { id:"ckIKE",    n:function(m){ return m.ikes.length; },   one:"SA",     many:"SAs" },
+    { id:"ckHits",   n:function(m){ return m.hitRows.length; }, one:"policy", many:"policies" }
+  ];
+
+  // Paging off (screen-length 0) and wrapping off (the widest screen-width allowed),
+  // for this session only - a capture cut at ---(more)--- or split across lines reads
+  // as something else. Then the configuration with inheritance, then each capture.
+  var CLI_SETUP = ["set cli screen-length 0", "set cli screen-width 1024"];
+  var CONFIG_CMD = "show configuration | display inheritance";
+
+  function allCommands(){
+    var cmds = Array.prototype.map.call(document.querySelectorAll(".ck[data-cmd]"), function(el){
+      return el.getAttribute("data-cmd");
+    });
+    return CLI_SETUP.concat([CONFIG_CMD]).concat(cmds).join("\n");
   }
 
-  function setOpt(on){
-    $("opt").classList.toggle("on", !!on);
-    $("optToggle").setAttribute("aria-expanded", String(!!on));
-    $("optTwisty").innerHTML = on ? "&#9662;" : "&#9656;";
-  }
-
-  function opCount(m, kind, srcKey){ return (m.opSources[kind] || {})[srcKey] || 0; }
-
-  // Each pane reports what that pane alone yielded. When a pane is empty but the
-  // configuration paste already carries that capture - a session capture or an RSI
-  // holds all of it - the pane says so instead of sitting there marked "optional"
-  // beside a report plainly full of routes.
-  function setPaneState(id, paneText, m, kind, srcKey, unit){
-    var el = $(id), own = opCount(m, kind, srcKey), inCfg = opCount(m, kind, "config");
-    if(paneText && paneText.trim()){
-      el.textContent = own ? plural(own, unit) : "nothing recognised";
-      el.className = "state" + (own ? " ok" : "");
-      return;
-    }
-    if(inCfg){
-      el.textContent = plural(inCfg, unit) + " already in the configuration";
-      el.className = "state found";
-      return;
-    }
-    el.textContent = "optional";
-    el.className = "state";
-  }
-
-  function updatePaneStates(m, extra){
-    setPaneState("routeState", extra.routes, m, "routes", "routePane", "route");
-    setPaneState("saState",    extra.sas,    m, "sas",    "saPane",    "SA");
-    setPaneState("ikeState",   extra.ike,    m, "ike",    "ikePane",   "SA");
-
-    var bits = [];
-    if(m.opRouteCount) bits.push(plural(m.opRouteCount, "route"));
-    if(m.sas.length)   bits.push(plural(m.sas.length, "IPsec SA"));
-    if(m.ikes.length)  bits.push(plural(m.ikes.length, "IKE SA"));
-
-    // Say where it came from, so the header is useful without expanding the section.
-    var fromPanes = opCount(m,"routes","routePane") + opCount(m,"sas","saPane") + opCount(m,"ike","ikePane");
-    var fromCfg   = opCount(m,"routes","config")   + opCount(m,"sas","config")  + opCount(m,"ike","config");
-    var where = "";
-    if(bits.length && !fromPanes && fromCfg) where = " \u2014 already in the configuration paste";
-    else if(bits.length && fromPanes && fromCfg) where = " \u2014 from the panes and the configuration paste";
-    $("optState").textContent = bits.length ? bits.join(" \u00b7 ") + where : "";
+  function renderChecks(m, parsed){
+    CHECKS.forEach(function(c){
+      var el = $(c.id), n = parsed ? c.n(m) : 0;
+      el.classList.toggle("on", n > 0);
+      el.querySelector(".mark").innerHTML = n > 0 ? "&#10003;" : "";
+      el.querySelector(".found").textContent = !parsed ? "" : (n ? plural(n, c.one, c.many) : "not in the paste");
+    });
   }
 
   function doParse(){
-    var text = currentText(), extra = extraText();
-    var m = parseConfig(text, extra);
+    var text = currentText();
+    var m = parseConfig(text);
     state.m = m;
     state.expanded = {};
     state.openChips = {};
 
     var found = m.ifx.order.length + m.zones.length + m.routes.length +
-                m.policies.length + m.vpns.length + m.sas.length + m.ikes.length;
+                m.policies.length + m.vpns.length + m.sas.length + m.ikes.length +
+                m.logging.sec.streams.length + m.logging.syslog.dests.length + m.hitRows.length;
     state.built = found > 0;
-    updatePaneStates(m, extra);
+    renderChecks(m, !!text.trim());
     fillZoneSelects();
     renderFlow();
 
@@ -4264,8 +5203,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
       $("tableWrap").classList.remove("on");
       $("diagramWrap").classList.remove("on");
       $("flow").classList.remove("on");
-      var anyInput = (text + extra.routes + extra.sas + extra.ike).trim();
-      showMsg(anyInput ? "Nothing recognised" : "Nothing to parse", nothingReport(text, m));
+      showMsg(text.trim() ? "Nothing recognised" : "Nothing to parse", nothingReport(text, m));
       return;
     }
 
@@ -4276,65 +5214,77 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 
   var BIG = 4000000;
 
-  function readFile(f, target){
-    if(!f) return;
-    target = target || "raw";
-    var fr = new FileReader();
-    fr.onload = function(){
-      var t = String(fr.result == null ? "" : fr.result);
+  // Put text in the box. Anything too big to edit comfortably is held in state and
+  // only its head is shown, but all of it is parsed.
+  function setRaw(t, label){
+    state.raw = t;
+    if(t.length <= BIG){
+      state.fileMode = false;
+      $("raw").removeAttribute("readonly");
+      $("raw").value = t;
+    } else {
+      state.fileMode = true;
+      $("raw").setAttribute("readonly", "readonly");
+      $("raw").value = t.slice(0, 40000) +
+        "\n\n[showing the first 40,000 characters of " + label + "; the whole of it is parsed]";
+    }
+  }
 
-      // The optional panes hold one command's output, which is never big enough
-      // to need the windowed read the configuration box does.
-      if(target !== "raw"){
-        if(t.length > BIG){
-          showMsg("That file is too large for this pane",
-            "<code>" + esc(f.name) + "</code> is " + t.length + " characters. Drop it on the " +
-            "configuration box instead - that one reads a file of any size.");
+  // Files read in order, one after another. Several at once, or one dropped on a box
+  // that already holds something, are added to it - captures arrive as separate files
+  // as often as not, and they all belong in the one box.
+  function readFiles(list, target){
+    var files = Array.prototype.slice.call(list || []);
+    if(!files.length) return;
+    target = target || "raw";
+    var got = [], i = 0;
+
+    function next(){
+      if(i >= files.length){ done(); return; }
+      var f = files[i++], fr = new FileReader();
+      fr.onload = function(){ got.push({ name:f.name, text:String(fr.result == null ? "" : fr.result) }); next(); };
+      fr.onerror = function(){
+        showMsg("Could not read that file",
+          "The browser refused to read <code>" + esc(f.name) + "</code>. Nothing was sent anywhere.");
+      };
+      fr.readAsText(f);
+    }
+
+    function done(){
+      if(target === "flowResult"){
+        var r = got[0];
+        if(r.text.length > BIG){
+          showMsg("That file is too large for this box",
+            "<code>" + esc(r.name) + "</code> is " + r.text.length + " characters - more than a match-policies answer ever is.");
           return;
         }
-        $(target).value = t;
-        if(target === "flowResult"){ renderFlow(); return; }
-        setOpt(true);
-        doParse();
+        $("flowResult").value = r.text;
+        renderFlow();
         return;
       }
-
-      state.fileName = f.name;
-      state.raw = t;
-      if(t.length <= BIG){
-        state.fileMode = false;
-        $("raw").removeAttribute("readonly");
-        $("raw").value = t;
-      } else {
-        state.fileMode = true;
-        $("raw").setAttribute("readonly", "readonly");
-        $("raw").value = t.slice(0, 40000) +
-          "\n\n[showing the first 40,000 characters of " + f.name + "; the whole file is parsed]";
-      }
+      var prev = currentText(), adding = !!prev.trim();
+      var names = (adding ? state.fileNames : []).concat(got.map(function(x){ return x.name; }));
+      var t = got.map(function(x){ return x.text; }).join("\n\n");
+      if(adding) t = prev.replace(/\s+$/, "") + "\n\n" + t;
+      state.fileNames = names;
+      setRaw(t, names.length === 1 ? names[0] : plural(names.length, "file"));
       $("fileNote").classList.remove("hidden");
-      $("fileNote").textContent = f.name + " — " + t.length + " characters, read in this page." +
+      $("fileNote").textContent = (names.length ? names.join(", ") + " — " : "") +
+        t.length + " characters, read in this page." +
+        (adding ? " Added to what was already in the box." : "") +
         (state.fileMode ? " Too large to edit here; press Clear to paste instead." : "");
       doParse();
-    };
-    fr.onerror = function(){
-      showMsg("Could not read that file",
-        "The browser refused to read <code>" + esc(f.name) + "</code>. Nothing was sent anywhere.");
-    };
-    fr.readAsText(f);
+    }
+    next();
   }
 
   function clearAll(){
-    state.raw = ""; state.fileMode = false; state.fileName = "";
+    state.raw = ""; state.fileMode = false; state.fileNames = [];
     state.m = EMPTY; state.built = false;
     state.filter = ""; state.expanded = {}; state.openChips = {};
     $("raw").removeAttribute("readonly");
     $("raw").value = "";
-    ["rawRoutes","rawSAs","rawIKE"].forEach(function(id){ $(id).value = ""; });
-    ["routeState","saState","ikeState"].forEach(function(id){
-      $(id).textContent = "optional"; $(id).className = "state";
-    });
-    $("optState").textContent = "";
-    setOpt(false);
+    renderChecks(EMPTY, false);
     $("fileInput").value = "";
     $("fileNote").classList.add("hidden");
     $("fileNote").textContent = "";
@@ -4363,12 +5313,13 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
   $("parseBtn").addEventListener("click", doParse);
   $("clearBtn").addEventListener("click", clearAll);
   $("sampleBtn").addEventListener("click", function(){
-    state.fileMode = false;
-    $("raw").removeAttribute("readonly");
-    $("raw").value       = SAMPLE_CONFIG;
-    $("rawRoutes").value = SAMPLE_ROUTES;
-    $("rawSAs").value    = SAMPLE_SAS;
-    $("rawIKE").value    = SAMPLE_IKE;
+    // One box, the way a session capture reads: the config, then each command.
+    setRaw([SAMPLE_CONFIG,
+            "admin@edge-srx-01> show route", SAMPLE_ROUTES,
+            "admin@edge-srx-01> show security ipsec security-associations detail", SAMPLE_SAS,
+            "admin@edge-srx-01> show security ike security-associations detail", SAMPLE_IKE,
+            "admin@edge-srx-01> show security policies hit-count", SAMPLE_HITS].join("\n\n"), "the sample");
+    state.fileNames = [];
     $("fileNote").classList.add("hidden");
     // The zones are left for the route lookup to fill, which is half of what the view shows.
     $("flowFrom").value = ""; $("flowTo").value = "";
@@ -4377,20 +5328,24 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     $("flowProto").value = "tcp"; $("flowSport").value = ""; $("flowDport").value = "443";
     $("flowCount").value = "2";
     $("flowResult").value = SAMPLE_MATCH;
-    setOpt(true);
     doParse();
   });
 
   $("fileBtn").addEventListener("click", function(){ $("fileInput").click(); });
   $("fileInput").addEventListener("change", function(e){
-    if(e.target.files && e.target.files.length) readFile(e.target.files[0], "raw");
+    if(e.target.files && e.target.files.length) readFiles(e.target.files, "raw");
+    e.target.value = "";
   });
 
-  $("optToggle").addEventListener("click", function(){
-    setOpt(!$("opt").classList.contains("on"));
+  $("allCmds").textContent = allCommands();
+  $("copyAll").addEventListener("click", function(e){ copyText(allCommands() + "\n", e.currentTarget); });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".ck .copy"), function(btn){
+    btn.addEventListener("click", function(e){
+      copyText(btn.parentNode.getAttribute("data-cmd"), e.currentTarget);
+    });
   });
 
-  // Every pane is its own drop target, so a file lands where it was aimed.
   Array.prototype.forEach.call(document.querySelectorAll(".drop"), function(zone){
     var target = zone.getAttribute("data-target");
     ["dragenter","dragover"].forEach(function(ev){
@@ -4401,7 +5356,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     });
     zone.addEventListener("drop", function(e){
       var dt = e.dataTransfer;
-      if(dt && dt.files && dt.files.length) readFile(dt.files[0], target);
+      if(dt && dt.files && dt.files.length) readFiles(dt.files, target);
     });
   });
 
@@ -4410,9 +5365,6 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
     setTimeout(doParse, 30);
   });
   $("raw").addEventListener("focus", function(){ $("pane").classList.remove("stowed"); });
-  ["rawRoutes","rawSAs","rawIKE"].forEach(function(id){
-    $(id).addEventListener("paste", function(){ setTimeout(doParse, 30); });
-  });
 
   $("filter").addEventListener("input", function(e){ state.filter = e.target.value; render(); });
   $("activeOnly").addEventListener("change", function(e){ state.activeOnly = e.target.checked; render(); });
@@ -4426,6 +5378,7 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
   $("viewPolicies").addEventListener("click", function(){ setView("policies"); });
   $("viewVpn").addEventListener("click",      function(){ setView("vpn"); });
   $("viewFlow").addEventListener("click",     function(){ setView("flow"); });
+  $("viewLogging").addEventListener("click",  function(){ setView("logging"); });
 
   $("svgBtn").addEventListener("click", function(){
     var host = $("diagram");
@@ -4472,6 +5425,8 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
   window.__parseMatchPolicies = parseMatchPolicies;
   window.__buildMatchCommand  = buildMatchCommand;
   window.__zoneForAddress     = function(ip){ return zoneForAddress(ip, state.m); };
+  window.__parseLogging       = function(t){ return parseConfig(t).logging; };
+  window.__parseHitCount      = parseHitCount;
 
   /* ============================ SAMPLE ============================ */
 
@@ -4479,6 +5434,22 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 "version 21.4R3-S4.9;",
 "system {",
 "    host-name edge-srx-01;",
+"    syslog {",
+"        user * {",
+"            any emergency;",
+"        }",
+"        host 192.168.250.50 {",
+"            any notice;",
+"            authorization info;",
+"        }",
+"        file messages {",
+"            any notice;",
+"            authorization info;",
+"        }",
+"        file interactive-commands {",
+"            interactive-commands any;",
+"        }",
+"    }",
 "}",
 "interfaces {",
 "    ge-0/0/0 {",
@@ -4588,6 +5559,24 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 "    }",
 "}",
 "security {",
+"    log {",
+"        mode stream;",
+"        format sd-syslog;",
+"        source-address 10.1.0.1;",
+"        stream siem {",
+"            category all;",
+"            host {",
+"                10.1.0.50;",
+"                port 514;",
+"            }",
+"        }",
+"        stream noc-collector {",
+"            severity warning;",
+"            host {",
+"                192.168.250.60;",
+"            }",
+"        }",
+"    }",
 "    address-book {",
 "        global {",
 "            address web-servers 192.0.2.10/32;",
@@ -4780,6 +5769,9 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 "                }",
 "                then {",
 "                    deny;",
+"                    log {",
+"                        session-close;",
+"                    }",
 "                }",
 "            }",
 "        }",
@@ -4867,6 +5859,20 @@ Policy: allow-web, action-type: permit, State: enabled, Index: 4
 "   Diffie-Hellman group  : DH-group-2",
 "  IPSec security associations: 0 created, 0 deleted",
 "  Phase 2 negotiations in progress: 0"
+].join("\n");
+
+  var SAMPLE_HITS = [
+"node0:",
+"--------------------------------------------------------------------------",
+"Logical system: root-logical-system",
+" Index   From zone        To zone           Name                 Policy count  Action",
+" 1       trust            untrust           allow-web            18342         Permit",
+" 2       trust            untrust           allow-all-out        2210          Permit",
+" 3       trust            untrust           allow-partner-mgmt   0             Permit",
+" 4       trust            vpn               to-branch-lan        961           Permit",
+" 5       untrust          trust             deny-all             48211         Deny",
+"",
+"Number of policy: 5"
 ].join("\n");
 
   var SAMPLE_MATCH = [
