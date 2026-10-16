@@ -31,6 +31,23 @@ function it(name, fn){
   try { fn(); passed++; }
   catch(e){ failures.push({ group, name, err: e }); }
 }
+// FileReader is asynchronous, so a few tests are too. They run after the synchronous
+// ones and the report waits for them.
+const pending = [];
+function itAsync(name, fn){
+  const g = group;
+  pending.push(Promise.resolve().then(fn).then(() => { passed++; }, err => { failures.push({ group:g, name, err }); }));
+}
+function until(cond, ms){
+  const end = Date.now() + (ms || 2000);
+  return new Promise((resolve, reject) => {
+    (function poll(){
+      if(cond()) return resolve();
+      if(Date.now() > end) return reject(new Error("timed out waiting"));
+      setTimeout(poll, 10);
+    })();
+  });
+}
 function ok(cond, msg){
   if(!cond) throw new Error(msg || "expected truthy");
 }
@@ -271,7 +288,9 @@ describe("junos-config-report / flattener", () => {
       "system { host-name srx; }"
     ].join("\n"));
     eq(flat.map(r => r.p.join(" ")), ["system host-name srx"]);
-    eq(flat[0].node, "node0");
+    // show configuration prints no node banners, so one here came from a capture
+    // pasted alongside and must not tag the configuration.
+    eq(flat[0].node, "");
   });
 
   it("survives garbage without throwing", () => {
@@ -701,7 +720,7 @@ describe("junos-config-report / ike security-associations", () => {
   });
 
   it("matches an IKE SA to its gateway by name", () => {
-    const m = W.__parseConfig(IPSEC_CFG, { ike: OPER_IKE });
+    const m = W.__parseConfig(IPSEC_CFG + "\n" + OPER_IKE);
     eq(m.ikes.length, 2);
     eq(m.orphanIKE.length, 0);
     eq(m.vpns[0].name, "to-branch");
@@ -712,142 +731,162 @@ describe("junos-config-report / ike security-associations", () => {
 
   it("falls back to the peer address when the output carries no gateway name", () => {
     const noName = OPER_IKE.replace(/, Gateway Name: \S+/g, "");
-    const m = W.__parseConfig(IPSEC_CFG, { ike: noName });
+    const m = W.__parseConfig(IPSEC_CFG + "\n" + noName);
     eq(m.orphanIKE.length, 0);
     eq(m.vpns[0].ikes[0].peer, "198.51.100.77");
   });
 
   it("keeps an IKE SA that matches no gateway as its own card", () => {
-    const m = W.__parseConfig(IPSEC_CFG, { ike: OPER_IKE.replace(/gw-branch/, "gw-nowhere").replace(/198\.51\.100\.77/g, "203.0.113.99") });
+    const m = W.__parseConfig(IPSEC_CFG + "\n" + OPER_IKE.replace(/gw-branch/, "gw-nowhere").replace(/198\.51\.100\.77/g, "203.0.113.99"));
     eq(m.orphanIKE.length, 1);
     eq(m.orphanIKE[0].gwName, "gw-nowhere");
     eq(m.vpns[0].ikes.length, 0);
   });
 
   it("reports phase 1 up with no phase 2 behind it", () => {
-    const m = W.__parseConfig(IPSEC_CFG, { ike: OPER_IKE });
+    const m = W.__parseConfig(IPSEC_CFG + "\n" + OPER_IKE);
     ok(m.vpns[0].liveNotes.some(n => /Phase 1 is up but no IPsec SA/.test(n.text)));
   });
 
   it("reports a phase 1 that negotiated a different IKE version than configured", () => {
-    const m = W.__parseConfig(IPSEC_CFG, { ike: OPER_IKE.replace("Exchange type: IKEv2", "Exchange type: Main") });
+    const m = W.__parseConfig(IPSEC_CFG + "\n" + OPER_IKE.replace("Exchange type: IKEv2", "Exchange type: Main"));
     ok(m.vpns[0].liveNotes.some(n => /configured v2-only but phase 1 negotiated Main/.test(n.text)));
   });
 
   it("says nothing about the version when the gateway does not pin one", () => {
-    const m = W.__parseConfig(IPSEC_CFG, { ike: OPER_IKE });
+    const m = W.__parseConfig(IPSEC_CFG + "\n" + OPER_IKE);
     ok(!m.vpns[1].liveNotes.some(n => /negotiated/.test(n.text)), "gw-partner pins no version");
   });
 });
 
-describe("junos-config-report / optional panes", () => {
-  it("parses the panes and the config box as one input", () => {
-    const t = load("junos-config-report.html");
-    const W = t.window;
-    const split  = W.__parseConfig(IFACES + STATICS + BRACE_ZONES, { routes: OPER_ROUTES, sas: OPER_SA, ike: OPER_IKE });
-    const merged = W.__parseConfig(IFACES + STATICS + BRACE_ZONES + OPER_ROUTES + OPER_SA + OPER_IKE);
-    eq(split.routes.length, merged.routes.length, "pane and single-box input must agree");
-    eq(split.sas.length, merged.sas.length);
-    eq(split.ikes.length, merged.ikes.length);
-    eq(split.opRouteCount, merged.opRouteCount);
-  });
-
-  it("reports per pane what that pane alone yielded", () => {
-    const t = load("junos-config-report.html");
-    t.$("raw").value       = BRACE_ZONES;
-    t.$("rawRoutes").value = OPER_ROUTES;
-    t.$("rawIKE").value    = OPER_IKE;
-    t.$("parseBtn").click();
-    includes(t.text("routeState"), "3 routes");
-    eq(t.text("saState"), "optional");
-    includes(t.text("ikeState"), "2 SAs");
-    includes(t.text("optState"), "IKE SA");
-  });
-
-  it("says so when a pane holds something it cannot read", () => {
-    const t = load("junos-config-report.html");
-    t.$("raw").value    = BRACE_ZONES;
-    t.$("rawIKE").value = "this is not ike output";
-    t.$("parseBtn").click();
-    eq(t.text("ikeState"), "nothing recognised");
-  });
-
-  it("opens the optional section and fills every pane from the sample", () => {
-    const t = load("junos-config-report.html");
-    t.$("sampleBtn").click();
-    eq(t.errors, []);
-    ok(t.$("opt").classList.contains("on"), "the sample should reveal the panes it used");
-    eq(t.$("optToggle").getAttribute("aria-expanded"), "true");
-    ok(t.$("rawRoutes").value.length > 0);
-    ok(t.$("rawSAs").value.length > 0);
-    ok(t.$("rawIKE").value.length > 0);
-    includes(t.text("srcline"), "ike security-associations");
-  });
-
-  it("toggles the optional section", () => {
-    const t = load("junos-config-report.html");
-    t.$("optToggle").click();
-    ok(t.$("opt").classList.contains("on"));
-    t.$("optToggle").click();
-    ok(!t.$("opt").classList.contains("on"));
-  });
-
-  it("clears every pane", () => {
-    const t = load("junos-config-report.html");
-    t.$("sampleBtn").click();
-    t.$("clearBtn").click();
-    eq(t.$("rawRoutes").value, "");
-    eq(t.$("rawSAs").value, "");
-    eq(t.$("rawIKE").value, "");
-    eq(t.text("ikeState"), "optional");
-    eq(t.text("optState"), "");
-    ok(!t.$("opt").classList.contains("on"));
-  });
-
-  it("builds a report from the panes alone, with no configuration at all", () => {
-    const t = load("junos-config-report.html");
-    t.$("rawIKE").value = OPER_IKE;
-    t.$("parseBtn").click();
-    ok(!t.$("msg").classList.contains("on"), "live state on its own is still a report");
-    t.$("viewVpn").click();
-    includes(t.text("cards"), "gw-branch");
-    includes(t.text("cards"), "phase 1 only");
-  });
-});
-
-describe("junos-config-report / operational output already in the config paste", () => {
+describe("junos-config-report / one box", () => {
   // What an engineer actually pastes: the config and every show command, one box.
+  const CFG = IFACES + STATICS + BRACE_ZONES;
   const WHOLE = [
-    IFACES, STATICS, BRACE_ZONES,
+    CFG,
     "", "user@srx> show route", "", OPER_ROUTES,
     "", "user@srx> show security ipsec security-associations detail", "", OPER_SA,
     "", "user@srx> show security ike security-associations detail", "", OPER_IKE
   ].join("\n");
 
-  const SPLIT_CFG = IFACES + STATICS + BRACE_ZONES;
-  const SPLIT_EXTRA = { routes: OPER_ROUTES, sas: OPER_SA, ike: OPER_IKE };
-
   function shape(m){
     return { routes: m.routes.length, op: m.opRouteCount, sas: m.sas.length,
              ikes: m.ikes.length, tables: m.tables.slice().sort() };
   }
+  function tick(t, id){
+    const el = t.$(id);
+    return { on: el.classList.contains("on"), mark: el.querySelector(".mark").textContent,
+             found: el.querySelector(".found").textContent };
+  }
 
-  it("reads the same model however the input is divided up", () => {
-    const W = load("junos-config-report.html").window;
-    const split = shape(W.__parseConfig(SPLIT_CFG, SPLIT_EXTRA));
-    const whole = shape(W.__parseConfig(WHOLE));
-    const both  = shape(W.__parseConfig(WHOLE, SPLIT_EXTRA));
-    eq(whole, split, "one box and separate panes must agree");
-    eq(both, split, "supplying it twice must not double anything");
+  it("picks every capture out of the one box", () => {
+    const m = load("junos-config-report.html").window.__parseConfig(WHOLE);
+    eq(m.opRouteCount, 3);
+    eq(m.sas.length, 1);
+    eq(m.ikes.length, 2);
+    ok(m.zones.length > 0 && m.ifx.order.length > 0, "and the configuration around them");
   });
 
-  it("counts a capture once when it is supplied twice", () => {
+  it("reads the same model whatever order the captures come in", () => {
     const W = load("junos-config-report.html").window;
-    const m = W.__parseConfig(WHOLE, SPLIT_EXTRA);
+    const shuffled = [OPER_IKE, CFG, OPER_SA, OPER_ROUTES].join("\n");
+    eq(shape(W.__parseConfig(shuffled)), shape(W.__parseConfig(WHOLE)));
+  });
+
+  it("counts a capture once when it is pasted twice", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig(WHOLE + "\nuser@srx> show route\n" + OPER_ROUTES +
+                              "\nuser@srx> show security ipsec security-associations detail\n" + OPER_SA +
+                              "\nuser@srx> show security ike security-associations detail\n" + OPER_IKE);
+    eq(shape(m), shape(W.__parseConfig(WHOLE)), "pasting it twice must not double anything");
     eq(m.opDuplicates.routes, 3);
     eq(m.opDuplicates.sas, 1);
     eq(m.opDuplicates.ike, 2);
-    ok(m.routes.length > 0);
+  });
+
+  it("does not let one command's node banner tag the next command's output", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig("node0:\n" + OPER_IKE + "\nuser@srx> show route\n" + OPER_ROUTES);
+    eq(m.ikes[0].node, "node0");
+    ok(m.routes.filter(r => r.src !== "config").every(r => r.node === ""), "routes came after a prompt, not under node0");
+  });
+
+  // The configuration must come out the same whatever is pasted around it: captures
+  // before it, after it, both, twice, with or without prompts, glued on with no prompt
+  // of its own, and with stray characters that a flattener would read as structure.
+  const STRAY = ["  AS path: 64512 {64513 64514", "  Local Identity: ipv4_subnet(any:0,[0..7]=10.1.0.0/24",
+                 "  }; stray", "node0:", "------"].join("\n");
+  const CAPS = { routes:["show route", OPER_ROUTES], sa:["show security ipsec security-associations detail", OPER_SA],
+                 ike:["show security ike security-associations detail", OPER_IKE], stray:["show route extensive", STRAY] };
+
+  it("reads the configuration the same whatever is pasted around it", () => {
+    const W = load("junos-config-report.html").window;
+    const flatOf = t => W.__parseConfig(t).flat.map(r => JSON.stringify([r.p.join(" "), r.inactive, r.node, r.grp]));
+    const SETFORM = W.__flatten(CFG).map(r => "set " + r.p.join(" ")).join("\n");
+    const fails = [];
+    for(const [form, cfg] of [["brace", CFG], ["set", SETFORM]]){
+      const want = flatOf(cfg);
+      for(const prompt of [true, false]) for(const where of ["before", "after", "both", "glued"])
+      for(const k of Object.keys(CAPS)) for(const twice of [false, true]){
+        const one = (prompt ? "user@srx> " + CAPS[k][0] + "\n" : "") + CAPS[k][1];
+        const cap = twice ? one + "\n" + one : one;
+        const head = prompt && where !== "glued" ? "user@srx> show configuration\n" : "";
+        const text = where === "before" ? cap + "\n" + head + cfg
+                   : where === "after"  ? head + cfg + "\n" + cap
+                   : where === "glued"  ? cap + "\n" + cfg
+                   : cap + "\n" + head + cfg + "\n" + cap;
+        const got = new Set(flatOf(text));
+        const lost = want.filter(x => !got.has(x));
+        if(lost.length) fails.push(`${form} prompt=${prompt} ${where} ${k} twice=${twice}: ${lost.length} statements lost, e.g. ${lost[0]}`);
+      }
+    }
+    eq(fails, []);
+  });
+
+  it("recovers a brace config after a capture leaves a brace open", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig("  AS path: 64512 {64513 64514\n" + CFG);
+    eq(m.ifx.order.length, W.__parseConfig(CFG).ifx.order.length);
+    eq(m.zones.length, W.__parseConfig(CFG).zones.length);
+  });
+
+  it("does not let a stray [ in a capture swallow the configuration after it", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig("  Local Identity: ipv4_subnet(any:0,[0..7]=10.1.0.0/24\n" + CFG);
+    eq(m.flat.length, W.__parseConfig(CFG).flat.length);
+  });
+
+  it("keeps operational output out of the configuration when prompts mark it", () => {
+    const W = load("junos-config-report.html").window;
+    eq(W.__parseConfig(WHOLE).stmtCount, W.__parseConfig(CFG).stmtCount);
+  });
+
+  it("reads configuration pasted straight after a capture with no prompt of its own", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig("user@srx> show route\n" + OPER_ROUTES + "\n" + CFG);
+    eq(m.zones.length, W.__parseConfig(CFG).zones.length);
+    eq(m.opRouteCount, 3);
+  });
+
+  it("does not tag the configuration with a node from a capture's banner", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig("node0:\n-----\n" + OPER_IKE + "\n" + CFG);
+    ok(m.flat.every(r => r.node === ""));
+    ok(m.zones.every(z => z.node === ""));
+  });
+
+  it("counts a repeat once even when a banner with no prompt tagged one copy", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig(CFG + "\n" + OPER_ROUTES + "\nnode0:\n-----\n" + OPER_SA + "\n" + OPER_ROUTES);
+    eq(m.opRouteCount, 3);
+    eq(m.opDuplicates.routes, 3);
+  });
+
+  it("still keeps the same route from two cluster nodes as two", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig("node0:\n-----\n" + OPER_ROUTES + "\nnode1:\n-----\n" + OPER_ROUTES);
+    eq(m.opRouteCount, 6);
+    eq(m.opDuplicates.routes, 0);
   });
 
   it("keeps captures that only look alike", () => {
@@ -859,57 +898,97 @@ inet.3: 1 destinations, 1 routes (1 active, 0 holddown, 0 hidden)
 10.9.9.9/32        *[RSVP/7] 1d 00:00:01
                     >  via st0.0
 `;
-    const m = W.__parseConfig(SPLIT_CFG + OPER_ROUTES, { routes: other });
+    const m = W.__parseConfig(CFG + OPER_ROUTES + "\n" + other);
     eq(m.opDuplicates.routes, 0, "a different table is not a duplicate");
     ok(m.tables.indexOf("inet.3") !== -1);
     ok(m.tables.indexOf("inet.0") !== -1);
   });
 
-  it("tells each pane the configuration paste already covers it", () => {
-    const t = load("junos-config-report.html");
-    t.$("raw").value = WHOLE;
-    t.$("parseBtn").click();
-    includes(t.text("routeState"), "already in the configuration");
-    includes(t.text("saState"), "already in the configuration");
-    includes(t.text("ikeState"), "already in the configuration");
-    includes(t.text("routeState"), "3 routes");
-    eq(t.doc.getElementById("routeState").className, "state found");
-  });
-
-  it("says so on the collapsed header, so the section need not be opened", () => {
-    const t = load("junos-config-report.html");
-    t.$("raw").value = WHOLE;
-    t.$("parseBtn").click();
-    ok(!t.$("opt").classList.contains("on"), "nothing was pasted into a pane, so it stays shut");
-    includes(t.text("optState"), "already in the configuration paste");
-    includes(t.text("optState"), "IKE SA");
-  });
-
-  it("distinguishes panes from the config paste on the header", () => {
-    const t = load("junos-config-report.html");
-    t.$("raw").value = WHOLE;
-    t.$("rawIKE").value = OPER_IKE;
-    t.$("parseBtn").click();
-    includes(t.text("optState"), "from the panes and the configuration paste");
-  });
-
   it("reports the repeat as a finding rather than silently dropping it", () => {
     const t = load("junos-config-report.html");
-    t.$("raw").value = WHOLE;
-    t.$("rawRoutes").value = OPER_ROUTES;
+    t.$("raw").value = WHOLE + "\nuser@srx> show route\n" + OPER_ROUTES;
     t.$("parseBtn").click();
     t.$("viewOverview").click();
     includes(t.text("ov"), "appears more than once in the input");
   });
 
-  it("leaves the panes marked optional when the config carries no live output", () => {
+  it("ticks off each optional command it found, and only those", () => {
     const t = load("junos-config-report.html");
-    t.$("raw").value = SPLIT_CFG;
+    t.$("raw").value = CFG + "\n" + OPER_ROUTES + "\n" + OPER_IKE;
     t.$("parseBtn").click();
-    eq(t.text("routeState"), "optional");
-    eq(t.text("saState"), "optional");
-    eq(t.text("ikeState"), "optional");
-    eq(t.text("optState"), "");
+    eq(tick(t, "ckRoutes"), { on:true,  mark:"✓", found:"3 routes" });
+    eq(tick(t, "ckSAs"),    { on:false, mark:"",       found:"not in the paste" });
+    eq(tick(t, "ckIKE"),    { on:true,  mark:"✓", found:"2 SAs" });
+    eq(tick(t, "ckHits"),   { on:false, mark:"",       found:"not in the paste" });
+  });
+
+  it("ticks nothing before a parse, or for a config with no captures", () => {
+    const t = load("junos-config-report.html");
+    eq(tick(t, "ckRoutes"), { on:false, mark:"", found:"" });
+    t.$("raw").value = CFG;
+    t.$("parseBtn").click();
+    ["ckRoutes","ckSAs","ckIKE","ckHits"].forEach(id => eq(tick(t, id).on, false, id));
+  });
+
+  it("does not tick a capture that is there but unreadable", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = CFG + "\nuser@srx> show security ike security-associations detail\nerror: syntax error\n";
+    t.$("parseBtn").click();
+    eq(tick(t, "ckIKE").found, "not in the paste");
+  });
+
+  it("ticks every command from the sample, which is all one box", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    eq(t.errors, []);
+    ["ckRoutes","ckSAs","ckIKE","ckHits"].forEach(id => ok(tick(t, id).on, id));
+    includes(t.$("raw").value, "show security policies hit-count");
+    eq(t.doc.querySelectorAll("textarea").length, 2, "the config box and the flow answer, nothing else");
+    includes(t.text("srcline"), "ike security-associations");
+  });
+
+  it("copies a command", () => {
+    const t = load("junos-config-report.html");
+    let copied = "";
+    Object.defineProperty(t.window.navigator, "clipboard", { configurable:true,
+      value:{ writeText: s => { copied = s; return Promise.resolve(); } } });
+    t.doc.querySelector("#ckHits .copy").click();
+    eq(copied, "show security policies hit-count");
+  });
+
+  it("clears the ticks", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("clearBtn").click();
+    eq(t.$("raw").value, "");
+    ["ckRoutes","ckSAs","ckIKE","ckHits"].forEach(id => eq(tick(t, id), { on:false, mark:"", found:"" }, id));
+  });
+
+  it("builds a report from captures alone, with no configuration at all", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = OPER_IKE;
+    t.$("parseBtn").click();
+    ok(!t.$("msg").classList.contains("on"), "live state on its own is still a report");
+    t.$("viewVpn").click();
+    includes(t.text("cards"), "gw-branch");
+    includes(t.text("cards"), "phase 1 only");
+  });
+
+  itAsync("adds several opened files to the box, and appends to what is there", async () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = CFG;
+    const input = t.$("fileInput");
+    Object.defineProperty(input, "files", { configurable:true, value:[
+      new t.window.File([OPER_ROUTES], "route.txt"),
+      new t.window.File([OPER_IKE], "ike.txt")
+    ]});
+    input.dispatchEvent(new t.window.Event("change"));
+    await until(() => t.text("fileNote").indexOf("ike.txt") !== -1);
+    includes(t.text("fileNote"), "route.txt, ike.txt");
+    includes(t.text("fileNote"), "Added to what was already in the box");
+    includes(t.$("raw").value, "reth0");
+    ok(tick(t, "ckRoutes").on && tick(t, "ckIKE").on);
+    eq(t.errors, []);
   });
 });
 
@@ -942,7 +1021,7 @@ security {
   it("draws a lifetime bar on each half-tunnel", () => {
     const t = load("junos-config-report.html");
     t.$("raw").value = LIFE_CFG;
-    t.$("rawSAs").value = OPER_SA;
+    t.$("raw").value += "\n" + OPER_SA;
     t.$("parseBtn").click();
     const l = lanes(t);
     const ipsec = l.filter(x => /bound$/.test(x.dir));
@@ -954,8 +1033,8 @@ security {
   it("scales the bar against the lifetime the VPN is configured to rekey at", () => {
     const t = load("junos-config-report.html");
     t.$("raw").value = LIFE_CFG;
-    t.$("rawSAs").value = OPER_SA;
-    t.$("rawIKE").value = OPER_IKE.replace(/Gateway Name: gw-branch/, "Gateway Name: gw");
+    t.$("raw").value += "\n" + OPER_SA;
+    t.$("raw").value += "\n" + OPER_IKE.replace(/Gateway Name: gw-branch/, "Gateway Name: gw");
     t.$("parseBtn").click();
     const l = lanes(t);
 
@@ -973,7 +1052,7 @@ security {
 
   it("falls back to the longest lifetime in the capture when none is configured", () => {
     const t = load("junos-config-report.html");
-    t.$("rawSAs").value = OPER_SA;          // no configuration at all
+    t.$("raw").value += "\n" + OPER_SA;          // no configuration at all
     t.$("parseBtn").click();
     const out = lanes(t).filter(x => /outbound/.test(x.dir))[0];
     eq(out.width, "width:100%", "the longest in the capture fills the bar");
@@ -982,7 +1061,7 @@ security {
 
   it("does not draw a bar for a phase 1 that reports no lifetime", () => {
     const t = load("junos-config-report.html");
-    t.$("rawIKE").value = OPER_IKE;
+    t.$("raw").value += "\n" + OPER_IKE;
     t.$("parseBtn").click();
     const withBar = lanes(t).filter(x => /^IKE/.test(x.dir));
     eq(withBar.length, 1, "only the UP peer reports a lifetime in this fixture");
@@ -1195,7 +1274,7 @@ const MP_PROMPT = "admin@fw1> " + MP_CMD;
 function flowPage(cfg, form, extra){
   const t = load("junos-config-report.html");
   t.$("raw").value = cfg;
-  if(extra && extra.sas) t.$("rawSAs").value = extra.sas;
+  if(extra && extra.sas) t.$("raw").value += "\n" + extra.sas;
   t.$("parseBtn").click();
   t.$("viewFlow").click();
   setFlow(t, Object.assign({ src:"10.1.0.25", dst:"192.0.2.80", proto:"tcp", sport:"", dport:"443" }, form || {}));
@@ -1655,15 +1734,766 @@ from-zone trust to-zone untrust {
   });
 });
 
+/* ---------------------------------------------------------------- logging -- */
+
+const MGMT_IF = `
+interfaces { fxp0 { unit 0 { family inet { address 192.168.250.10/24; } } } }`;
+
+const LOG_BRACE = `
+system {
+    syslog {
+        host 10.1.0.60 {
+            any any;
+            match "RT_FLOW_SESSION";
+            port 5514;
+        }
+        file messages {
+            any notice;
+        }
+    }
+}
+security {
+    log {
+        mode stream;
+        format sd-syslog;
+        source-address 10.1.0.1;
+        stream siem {
+            category [ all ];
+            host {
+                10.1.0.50;
+                port 514;
+            }
+        }
+        stream noc {
+            severity warning;
+            host {
+                192.168.250.60;
+            }
+        }
+    }
+}`;
+
+const LOG_SET = `
+set system syslog host 10.1.0.60 any any
+set system syslog host 10.1.0.60 match RT_FLOW_SESSION
+set system syslog host 10.1.0.60 port 5514
+set system syslog file messages any notice
+set security log mode stream
+set security log format sd-syslog
+set security log source-address 10.1.0.1
+set security log stream siem category all
+set security log stream siem host 10.1.0.50
+set security log stream siem host port 514
+set security log stream noc severity warning
+set security log stream noc host 192.168.250.60`;
+
+const LOG_POLICIES = `
+security {
+    zones {
+        security-zone trust { interfaces { reth0.0; } }
+        security-zone untrust { interfaces { reth1.0; } }
+    }
+    policies {
+        from-zone trust to-zone untrust {
+            policy allow-web {
+                match { source-address any; destination-address any; application junos-https; }
+                then { permit; log { session-init; } }
+            }
+            policy allow-all {
+                match { source-address any; destination-address any; application any; }
+                then { permit; log { session-close; } }
+            }
+        }
+        from-zone untrust to-zone trust {
+            policy block {
+                match { source-address any; destination-address any; application any; }
+                then { deny; log { session-close; } }
+            }
+        }
+    }
+}`;
+
+const HITS = `
+Logical system: root-logical-system
+ Index   From zone        To zone           Name           Policy count  Action
+ 1       trust            untrust           allow-web      1520          Permit
+ 2       trust            untrust           allow-all      77            Permit
+ 3       untrust          trust             block          48211         Deny
+
+Number of policy: 3`;
+
+const HITS_CLUSTER = `
+node0:
+--------------------------------------------------------------------------
+Logical system: root-logical-system
+ Index   From zone        To zone           Name           Policy count  Action
+ 3       untrust          trust             block          40000         Deny
+ 9       untrust          trust             from-a-group   12            Deny
+
+node1:
+--------------------------------------------------------------------------
+Logical system: root-logical-system
+ Index   From zone        To zone           Name           Policy count  Action
+ 3       untrust          trust             block          211           Deny`;
+
+function logNotes(m){
+  const L = m.logging;
+  let out = L.notes.slice();
+  L.sec.streams.forEach(s => { out = out.concat(s.notes); });
+  L.syslog.dests.forEach(d => { out = out.concat(d.notes); });
+  L.rows.forEach(r => { out = out.concat(r.notes); });
+  return out;
+}
+function hasLogNote(m, level, re){
+  const ns = logNotes(m);
+  ok(ns.some(n => n.level === level && re.test(n.text)),
+     `expected a ${level} note matching ${re}, got: ${JSON.stringify(ns.map(n => n.level + ": " + n.text))}`);
+}
+function noLogNote(m, re){
+  const ns = logNotes(m);
+  ok(!ns.some(n => re.test(n.text)), `did not expect a note matching ${re}, got: ${JSON.stringify(ns.map(n => n.text))}`);
+}
+
+describe("junos-config-report / logging parser", () => {
+  const W = load("junos-config-report.html").window;
+
+  it("reads streams and syslog destinations the same from brace and set form", () => {
+    const a = W.__parseLogging(LOG_BRACE), b = W.__parseLogging(LOG_SET);
+    const shape = L => ({
+      mode: L.sec.mode, format: L.sec.format, src: L.sec.sourceAddress,
+      streams: L.sec.streams.map(s => [s.name, s.host, s.port, s.severity, s.categories]),
+      dests: L.syslog.dests.map(d => [d.kind, d.name, d.port, d.levels, d.match])
+    });
+    eq(shape(a), shape(b));
+    eq(shape(a).streams, [["siem","10.1.0.50","514","",["all"]], ["noc","192.168.250.60","","warning",[]]]);
+    eq(a.syslog.dests[0].levels, [{facility:"any", severity:"any"}]);
+    eq(a.syslog.dests[0].match, ["RT_FLOW_SESSION"]);
+  });
+
+  it("joins a stream host to the interface and zone it leaves by", () => {
+    const m = W.__parseConfig(IFACES + MGMT_IF + BRACE_ZONES + LOG_BRACE);
+    const siem = m.logging.sec.streams.find(s => s.name === "siem");
+    eq(siem.path.ifaces, ["reth0.0"]);
+    eq(siem.path.zones, ["trust"]);
+    eq(siem.sessions, "yes");
+    eq(m.logging.sec.sourceIf, "reth0.0");
+  });
+
+  it("warns when a stream can only leave through fxp0", () => {
+    const m = W.__parseConfig(IFACES + MGMT_IF + BRACE_ZONES + LOG_BRACE);
+    const noc = m.logging.sec.streams.find(s => s.name === "noc");
+    ok(noc.path.mgmt);
+    ok(noc.notes.some(n => n.level === "warn" && /management port/.test(n.text)));
+  });
+
+  it("says a stream filtered above info never carries session logs", () => {
+    const m = W.__parseConfig(LOG_BRACE);
+    const noc = m.logging.sec.streams.find(s => s.name === "noc");
+    eq(noc.sessions, "no");
+    hasLogNote(m, "warn", /severity warning\. Session logs are sent at info/);
+  });
+
+  it("says system syslog sees no session logs in stream mode", () => {
+    const m = W.__parseConfig(LOG_BRACE);
+    m.logging.syslog.dests.forEach(d => eq(d.sessions, "no", d.name));
+  });
+
+  it("reads event mode through system syslog, and flags streams it ignores", () => {
+    const cfg = LOG_SET.replace("mode stream", "mode event");
+    const m = W.__parseConfig(cfg);
+    const host = m.logging.syslog.dests.find(d => d.name === "10.1.0.60");
+    eq(host.sessions, "yes", "any any with an RT_FLOW match takes session logs");
+    eq(m.logging.syslog.dests.find(d => d.name === "messages").sessions, "no", "any notice drops info");
+    m.logging.sec.streams.forEach(s => eq(s.sessions, "no"));
+    hasLogNote(m, "warn", /Mode is event, so 2 configured streams are not used/);
+  });
+
+  it("calls a syslog match that does not name RT_FLOW filtered, not absent", () => {
+    const m = W.__parseConfig(`
+set security log mode event
+set system syslog file traffic any any
+set system syslog file traffic match "IDP_ATTACK"`);
+    eq(m.logging.syslog.dests[0].sessions, "filtered");
+    hasLogNote(m, "info", /does not name RT_FLOW/);
+  });
+
+  it("leaves the mode undecided rather than guessing a platform default", () => {
+    const m = W.__parseConfig(`set security log stream s host 10.1.0.50` + IFACES);
+    eq(m.logging.sec.mode, "");
+    eq(m.logging.sec.streams[0].sessions, "maybe");
+    hasLogNote(m, "info", /No security log mode is set/);
+  });
+
+  it("warns when stream mode has no source address", () => {
+    const m = W.__parseConfig(`
+set security log mode stream
+set security log stream s host 10.1.0.50`);
+    hasLogNote(m, "warn", /Stream mode with no security log source-address/);
+  });
+
+  it("warns when the source address is on no interface", () => {
+    const m = W.__parseConfig(IFACES + `
+set security log mode stream
+set security log source-address 10.9.9.9
+set security log stream s host 10.1.0.50`);
+    hasLogNote(m, "warn", /source-address 10\.9\.9\.9 is not configured on any interface/);
+  });
+
+  it("does not call logs lost when the paste has no logging hierarchy at all", () => {
+    const m = W.__parseConfig(LOG_POLICIES);
+    noLogNote(m, /nothing in this paste sends them anywhere/);
+    hasLogNote(m, "info", /No security log and no system syslog in this paste/);
+  });
+
+  it("warns when policies log and nothing receives it", () => {
+    const m = W.__parseConfig(IFACES + LOG_POLICIES + `
+set security log mode event
+set system syslog file messages any notice`);
+    hasLogNote(m, "warn", /ask for session logs, but nothing in this paste sends them anywhere/);
+  });
+
+  it("flags a stream host with no route, softened when a dynamic protocol could supply one", () => {
+    const base = IFACES + `
+set security log mode stream
+set security log source-address 10.1.0.1
+set security log stream s host 198.18.0.5`;
+    hasLogNote(W.__parseConfig(base), "warn", /No route in inet\.0 covers 198\.18\.0\.5/);
+    hasLogNote(W.__parseConfig(base + "\nset protocols ospf area 0 interface reth0.0"), "info", /may be learned through ospf/);
+  });
+
+  it("looks a host up in its own routing instance", () => {
+    const m = W.__parseConfig(IFACES + `
+set routing-instances MGMT instance-type virtual-router
+set routing-instances MGMT interface reth1.0
+set security log mode stream
+set security log source-address 10.1.0.1
+set security log stream s host 203.0.113.80
+set security log stream s host routing-instance MGMT`);
+    const s = m.logging.sec.streams[0];
+    eq(s.routingInstance, "MGMT");
+    eq(s.path.table, "MGMT.inet.0");
+  });
+
+  it("warns that session-close on a deny never fires", () => {
+    const m = W.__parseConfig(LOG_POLICIES);
+    const r = m.logging.rows.find(r => r.p.name === "block");
+    ok(r.close && !r.init);
+    ok(r.notes.some(n => n.level === "warn" && /no close to log/.test(n.text)));
+  });
+
+  it("notes a permit that logs the open only", () => {
+    const m = W.__parseConfig(LOG_POLICIES);
+    const r = m.logging.rows.find(r => r.p.name === "allow-web");
+    ok(r.notes.some(n => /Logs the open only/.test(n.text)));
+  });
+
+  it("reports zone pairs whose fall-through to the default policy goes unlogged", () => {
+    const m = W.__parseConfig(LOG_POLICIES);
+    eq(m.logging.unloggedPairs, ["untrust trust"], "trust->untrust ends in a catch-all permit");
+    hasLogNote(m, "info", /1 of 2 zone pairs end without a logged catch-all deny/);
+  });
+
+  it("counts a global logged catch-all deny as covering every pair", () => {
+    const m = W.__parseConfig(LOG_POLICIES + `
+set security policies global policy last match source-address any
+set security policies global policy last match destination-address any
+set security policies global policy last match application any
+set security policies global policy last then deny
+set security policies global policy last then log session-init`);
+    noLogNote(m, /logged catch-all deny/);
+  });
+
+  it("marks a destination inactive only when all of it is", () => {
+    const m = W.__parseConfig(`
+set system syslog host 10.1.0.60 any any
+deactivate system syslog host 10.1.0.60 port
+set system syslog host 10.1.0.70 any any
+deactivate system syslog host 10.1.0.70`);
+    const d = m.logging.syslog.dests;
+    eq(d.find(x => x.name === "10.1.0.60").inactive, false);
+    eq(d.find(x => x.name === "10.1.0.70").inactive, true);
+    const b = W.__parseConfig(`security { log { inactive: stream s { host { 10.1.0.50; } } } }`);
+    eq(b.logging.sec.streams[0].inactive, true, "brace form inactive: reaches every child");
+  });
+});
+
+describe("junos-config-report / one-shot commands and files", () => {
+  const P = "user@srx> ";
+  const SESSION = [
+    P + "set cli screen-length 0", "Screen length set to 0",
+    P + "set cli screen-width 1024", "Screen width set to 1024",
+    P + "show configuration | display inheritance", IFACES + STATICS + BRACE_ZONES,
+    P + "show route", OPER_ROUTES,
+    P + "show security ipsec security-associations detail", OPER_SA,
+    P + "show security ike security-associations detail", OPER_IKE,
+    P + "show security policies hit-count", HITS,
+    P
+  ].join("\n");
+  const shape = m => ({ ifaces: m.ifx.order.length, zones: m.zones.length, stmts: m.stmtCount, op: m.opRouteCount,
+                        sas: m.sas.length, ikes: m.ikes.length, hits: m.hitRows.length });
+
+  it("lists every command once, paging and wrapping off first", () => {
+    const t = load("junos-config-report.html");
+    const lines = t.text("allCmds").split("\n");
+    eq(lines.slice(0, 3), ["set cli screen-length 0", "set cli screen-width 1024", "show configuration | display inheritance"]);
+    eq(lines.slice(3), Array.from(t.doc.querySelectorAll(".ck[data-cmd]")).map(e => e.getAttribute("data-cmd")),
+       "the block and the checklist name the same commands");
+  });
+
+  it("copies the whole block", () => {
+    const t = load("junos-config-report.html");
+    let copied = "";
+    Object.defineProperty(t.window.navigator, "clipboard", { configurable:true,
+      value:{ writeText: s => { copied = s; return Promise.resolve(); } } });
+    t.$("copyAll").click();
+    eq(copied, t.text("allCmds") + "\n");
+  });
+
+  it("reads what the one-shot block prints as if each capture were pasted on its own", () => {
+    const W = load("junos-config-report.html").window;
+    const m = W.__parseConfig(SESSION);
+    eq(shape(m), shape(W.__parseConfig([IFACES + STATICS + BRACE_ZONES, OPER_ROUTES, OPER_SA, OPER_IKE, HITS].join("\n"))));
+    eq(m.stmtCount, W.__parseConfig(IFACES + STATICS + BRACE_ZONES).stmtCount, "the set cli echoes are not config");
+  });
+
+  it("reads a saved terminal log the same as a clean paste", () => {
+    const W = load("junos-config-report.html").window;
+    const want = shape(W.__parseConfig(SESSION));
+    const lines = SESSION.split("\n");
+    const logs = {
+      bom:   "﻿" + SESSION,
+      crlf:  SESSION.replace(/\n/g, "\r\n"),
+      ansi:  lines.map((l, i) => i % 5 === 2 ? "\x1b[K\x1b[0m" + l : l).join("\n"),
+      nul:   SESSION.replace(/\n/g, "\n\x00"),
+      pager: lines.map((l, i) => i % 9 === 8 ? "---(more 42%)---\r                \r" + l : l).join("\n"),
+      bs:    SESSION.replace(P + "show route", P + "show rou\b\b\broute"),
+      title: "\x1b]0;user@srx: ~\x07" + SESSION
+    };
+    for(const [k, v] of Object.entries(logs)) eq(shape(W.__parseConfig(v)), want, k);
+  });
+
+  itAsync("reads an opened session log, artefacts and all, like a paste", async () => {
+    const t = load("junos-config-report.html");
+    const input = t.$("fileInput");
+    const log = "﻿" + SESSION.replace(/\n/g, "\r\n").replace(/\r\n/g, (m, i) => i % 3 ? m : "\x1b[K" + m);
+    Object.defineProperty(input, "files", { configurable:true, value:[ new t.window.File([log], "session.log") ] });
+    input.dispatchEvent(new t.window.Event("change"));
+    await until(() => t.text("fileNote").indexOf("session.log") !== -1);
+    const want = shape(t.window.__parseConfig(SESSION));
+    eq(shape(t.window.__parseConfig(t.$("raw").value)), want);
+    ["ckRoutes","ckSAs","ckIKE","ckHits"].forEach(id => ok(t.$(id).classList.contains("on"), id));
+    eq(t.errors, []);
+  });
+
+  itAsync("adds a dropped file to what is already in the box", async () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + STATICS + BRACE_ZONES;
+    const ev = new t.window.Event("drop", { bubbles:true, cancelable:true });
+    Object.defineProperty(ev, "dataTransfer", { value:{ files:[ new t.window.File([P + "show route\n" + OPER_ROUTES], "route.txt") ] } });
+    t.$("drop").dispatchEvent(ev);
+    await until(() => t.text("fileNote").indexOf("route.txt") !== -1);
+    includes(t.text("fileNote"), "Added to what was already in the box");
+    ok(t.$("ckRoutes").classList.contains("on"));
+    ok(t.$("raw").value.indexOf("reth0") !== -1, "the config is still there");
+  });
+
+  itAsync("parses all of a file too large to edit, and says so", async () => {
+    const t = load("junos-config-report.html");
+    const filler = Array(90000).fill("## " + "x".repeat(44)).join("\n");      // ~4.2 MB of comment lines
+    const big = IFACES + STATICS + BRACE_ZONES + "\n" + filler + "\n" + P + "show route\n" + OPER_ROUTES;
+    ok(big.length > 4000000);
+    const input = t.$("fileInput");
+    Object.defineProperty(input, "files", { configurable:true, value:[ new t.window.File([big], "rsi.txt") ] });
+    input.dispatchEvent(new t.window.Event("change"));
+    await until(() => t.text("fileNote").indexOf("rsi.txt") !== -1, 10000);
+    includes(t.text("fileNote"), "Too large to edit here");
+    ok(t.$("raw").hasAttribute("readonly"));
+    ok(t.$("ckRoutes").classList.contains("on"), "the capture at the far end of the file was read");
+    ok(t.$("raw").value.length < big.length, "only the head is shown");
+  });
+});
+
+describe("junos-config-report / config groups", () => {
+  const W = load("junos-config-report.html").window;
+  const LOG_GROUP = `
+set groups LOG security policies from-zone <*> to-zone <*> policy <*> then log session-close`;
+  const row = (m, name) => m.logging.rows.find(r => r.p.name === name);
+
+  it("applies a wildcard logging group to every policy and says where it came from", () => {
+    const m = W.__parseConfig(LOG_POLICIES + LOG_GROUP + "\nset apply-groups LOG");
+    eq(row(m, "allow-web").close, true);
+    eq(row(m, "allow-web").closeFrom, "LOG");
+    eq(row(m, "allow-all").closeFrom, "", "configured explicitly, so not credited to the group");
+    eq(m.groupInfo.inherited, 1);
+    hasLogNote(m, "info", /1 policy logs because of group LOG/);
+  });
+
+  it("does nothing with a group that is never applied, and says so", () => {
+    const m = W.__parseConfig(LOG_POLICIES + LOG_GROUP);
+    eq(row(m, "allow-web").close, false);
+    eq(m.groupInfo.unapplied, ["LOG"]);
+    hasLogNote(m, "warn", /Group LOG sets policy logging but reaches no policy/);
+  });
+
+  it("lets a wildcard match only what the configuration has, never create it", () => {
+    const m = W.__parseConfig(LOG_POLICIES + `
+set groups G security policies from-zone <*> to-zone dmz policy <*> then log session-init
+set apply-groups G`);
+    eq(m.policies.length, 3);
+    eq(m.groupInfo.inherited, 0);
+  });
+
+  it("matches a partial wildcard", () => {
+    const m = W.__parseConfig(LOG_POLICIES + `
+set groups G security policies from-zone <*> to-zone <*> policy <allow-*> then log session-init
+set apply-groups G`);
+    eq(row(m, "allow-all").initFrom, "G");
+    eq(row(m, "block").init, false);
+  });
+
+  it("creates what a group names outright", () => {
+    const m = W.__parseConfig(`
+set groups BASE system syslog host 10.9.9.9 any any
+set apply-groups BASE`);
+    const d = m.logging.syslog.dests.find(x => x.name === "10.9.9.9");
+    ok(d, "the syslog host comes from the group");
+    eq(d.from, ["BASE"]);
+  });
+
+  it("keeps an explicit value over an inherited one, and an earlier group over a later one", () => {
+    const explicitWins = W.__parseConfig(`
+set security log mode event
+set groups A security log mode stream
+set apply-groups A`);
+    eq(explicitWins.logging.sec.mode, "event");
+    const firstGroupWins = W.__parseConfig(`
+set groups A security log mode stream
+set groups B security log mode event
+set apply-groups [ A B ]`);
+    eq(firstGroupWins.logging.sec.mode, "stream");
+    const sev = W.__parseConfig(`
+set system syslog file messages any notice
+set groups A system syslog file messages any any
+set apply-groups A`);
+    eq(sev.logging.syslog.dests[0].levels, [{facility:"any", severity:"notice"}], "one severity per facility, explicit wins");
+  });
+
+  it("merges flags rather than replacing them", () => {
+    const m = W.__parseConfig(LOG_POLICIES + `
+set groups G security policies from-zone <*> to-zone <*> policy <*> then log session-init
+set apply-groups G`);
+    const r = row(m, "allow-all");
+    ok(r.init && r.close, "explicit session-close and inherited session-init both stand");
+  });
+
+  it("applies a group set below the top only to that subtree", () => {
+    const m = W.__parseConfig(LOG_POLICIES + LOG_GROUP +
+      "\nset security policies from-zone trust to-zone untrust apply-groups LOG");
+    eq(row(m, "allow-web").closeFrom, "LOG");
+    eq(row(m, "block").closeFrom, "");
+    eq(m.groupInfo.inherited, 1);
+  });
+
+  it("honours apply-groups-except", () => {
+    const m = W.__parseConfig(LOG_POLICIES + `
+set groups G security policies from-zone <*> to-zone <*> policy <*> then log session-init
+set apply-groups G
+set security policies from-zone untrust to-zone trust policy block apply-groups-except G`);
+    eq(row(m, "allow-web").init, true);
+    eq(row(m, "block").init, false);
+  });
+
+  it("does not apply an inactive group or an inactive apply-groups", () => {
+    const a = W.__parseConfig(LOG_POLICIES + LOG_GROUP + "\nset apply-groups LOG\ndeactivate apply-groups LOG");
+    eq(row(a, "allow-web").close, false);
+    const b = W.__parseConfig(LOG_POLICIES + "\ngroups { inactive: LOG { security { policies { from-zone <*> to-zone <*> { policy <*> { then { log { session-close; } } } } } } } }\nset apply-groups LOG");
+    eq(row(b, "allow-web").close, false);
+  });
+
+  it("leaves ${node} alone and does not call node groups unapplied", () => {
+    const m = W.__parseConfig(`
+set groups node0 system host-name fw-a
+set groups node1 system host-name fw-b
+set apply-groups "\${node}"`);
+    eq(m.host, "");
+    ok(m.groupInfo.nodeGroup);
+    eq(m.groupInfo.unapplied, []);
+  });
+
+  it("adds nothing twice to display inheritance output, and does not call the group idle", () => {
+    const inherited = W.__parseConfig(LOG_POLICIES + LOG_GROUP + "\nset apply-groups LOG");
+    // What the device prints: the inherited statement written out, the group still there.
+    const shown = LOG_POLICIES + `
+## 'session-close' was inherited from group 'LOG'
+set security policies from-zone trust to-zone untrust policy allow-web then log session-close` + LOG_GROUP + "\nset apply-groups LOG";
+    const m = W.__parseConfig(shown);
+    eq(m.groupInfo.inherited, 0);
+    eq(row(m, "allow-web").close, true);
+    eq(m.policies.length, inherited.policies.length);
+    noLogNote(m, /reaches no policy/);
+  });
+
+  it("still keeps a group's own template out of the report", () => {
+    const m = W.__parseConfig(`groups { node0 { security { zones { security-zone ghost { interfaces { ge-0/0/0.0; } } } } } }`);
+    eq(m.zones.length, 0);
+  });
+
+  function policyRow(t, name){
+    const tr = Array.from(t.doc.querySelectorAll("#table tbody tr")).find(r => r.children[3] && r.children[3].textContent.indexOf(name) === 0);
+    ok(tr, "row for " + name);
+    return tr;
+  }
+  function logCell(t, name){
+    const tr = policyRow(t, name);
+    return tr.children[tr.children.length - 1];
+  }
+
+  it("shows in the Policies view whether each policy logs, inherited flags included", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + LOG_POLICIES + `
+set groups G security policies from-zone <*> to-zone <*> policy <allow-*> then log session-close
+set apply-groups G`;
+    t.$("parseBtn").click();
+    t.$("viewPolicies").click();
+    eq(t.doc.querySelector("#table thead tr").lastChild.textContent, "Logging");
+
+    // Each line says what is recorded, then the keyword, then the marker if inherited.
+    const lines = cell => Array.from(cell.querySelectorAll(".logline")).map(l => ({
+      what: l.querySelector(".what").textContent,
+      kw:   (l.querySelector(".kw") || {}).textContent || "",
+      inh:  (l.querySelector(".inh") || {}).textContent || ""
+    }));
+    eq(lines(logCell(t, "allow-web")), [
+      { what:"session start",       kw:"session-init",  inh:"" },
+      { what:"session end + bytes", kw:"session-close", inh:"inherited \u00b7 G" }
+    ]);
+    includes(logCell(t, "allow-web").querySelector(".inh").getAttribute("title"), "Inherited from config group G");
+    eq(lines(logCell(t, "allow-all")), [{ what:"session end + bytes", kw:"session-close", inh:"" }],
+       "configured explicitly, so not marked inherited");
+    eq(t.errors, []);
+  });
+
+  it("does not show logging from a group that is not applied", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + LOG_POLICIES + LOG_GROUP;
+    t.$("parseBtn").click();
+    t.$("viewPolicies").click();
+    excludes(logCell(t, "allow-web").textContent, "session-close");
+  });
+
+  it("calls out a deny that records nothing", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + LOG_POLICIES;
+    t.$("parseBtn").click();
+    t.$("viewPolicies").click();
+    const block = logCell(t, "block");
+    includes(block.textContent, "never fires on a deny");
+    includes(block.textContent, "drops not logged");
+    eq(block.querySelectorAll(".logline.warn").length, 2, "both lines highlighted as warnings");
+    excludes(policyRow(t, "block").textContent, "+log", "the action column no longer carries it");
+  });
+
+  it("says not logged when a policy logs nothing", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + `
+set security policies from-zone trust to-zone untrust policy quiet match source-address any
+set security policies from-zone trust to-zone untrust policy quiet match destination-address any
+set security policies from-zone trust to-zone untrust policy quiet match application any
+set security policies from-zone trust to-zone untrust policy quiet then permit`;
+    t.$("parseBtn").click();
+    t.$("viewPolicies").click();
+    eq(logCell(t, "quiet").textContent, "not logged");
+  });
+
+  it("filters policies by what they log and by the group it came from", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + LOG_POLICIES + `
+set groups G security policies from-zone <*> to-zone <*> policy <allow-web> then log session-close
+set apply-groups G`;
+    t.$("parseBtn").click();
+    t.$("viewPolicies").click();
+    t.$("filter").value = "inherited from G";
+    t.$("filter").dispatchEvent(new t.window.Event("input"));
+    includes(t.text("table"), "allow-web");
+    excludes(t.text("table"), "allow-all");
+  });
+
+  it("exports the logging column", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + LOG_POLICIES + LOG_GROUP + "\nset apply-groups LOG";
+    t.$("parseBtn").click();
+    t.$("viewPolicies").click();
+    const got = [];
+    t.window.HTMLAnchorElement.prototype.click = function(){ got.push({ name:this.download, href:this.href }); };
+    t.$("csvBtn").click();
+    const csv = decodeURIComponent(got[0].href.split(",").slice(1).join(","));
+    includes(csv.split("\n")[0], '"Action","Logging"');
+    includes(csv, '"session start [session-init]; session end + bytes [session-close, inherited from LOG]"');
+    includes(csv, '"never fires on a deny [session-close]; drops not logged"');
+    let md = "";
+    Object.defineProperty(t.window.navigator, "clipboard", { configurable:true,
+      value:{ writeText: s => { md = s; return Promise.resolve(); } } });
+    t.$("mdBtn").click();
+    includes(md, "| Action | Logging |");
+  });
+
+  it("shows the group beside the log flag in the logging view", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = IFACES + LOG_POLICIES + LOG_GROUP + "\nset apply-groups LOG";
+    t.$("parseBtn").click();
+    t.$("viewLogging").click();
+    ok(t.doc.querySelector("#cards .inh"), "the same inherited marker as the Policies view");
+    includes(t.doc.querySelector("#cards .inh").textContent, "LOG");
+    t.$("viewOverview").click();
+    includes(t.text("ov"), "Statements inherited from groups");
+    eq(t.errors, []);
+  });
+});
+
+describe("junos-config-report / policy hit counts", () => {
+  const W = load("junos-config-report.html").window;
+
+  it("parses the hit-count table", () => {
+    const h = W.__parseHitCount(HITS);
+    eq(h.length, 3);
+    eq(h[2], { node:"", lsys:"root-logical-system", index:"3", from:"untrust", to:"trust",
+               name:"block", count:48211, action:"deny" });
+  });
+
+  it("reads nothing out of a configuration", () => {
+    eq(W.__parseHitCount(LOG_POLICIES + LOG_SET + IFACES).length, 0);
+  });
+
+  it("joins hit counts onto policies and flags unlogged drops", () => {
+    const m = W.__parseConfig(LOG_POLICIES + "\n" + HITS);
+    const r = m.logging.rows.find(r => r.p.name === "block");
+    eq(r.hits, 48211);
+    ok(r.notes.some(n => /48211 lookups hit this deny/.test(n.text)));
+    eq(m.logging.hitTotal, 1520 + 77 + 48211);
+  });
+
+  it("sums cluster nodes and names policies the config does not have", () => {
+    const m = W.__parseConfig(LOG_POLICIES + "\n" + HITS_CLUSTER);
+    const r = m.logging.rows.find(r => r.p.name === "block");
+    eq(r.hits, 40211);
+    eq(r.nodes, { node0: 40000, node1: 211 });
+    eq(m.logging.stray, ["from-a-group"]);
+    hasLogNote(m, "info", /names 1 policy this configuration does not have: from-a-group/);
+  });
+
+  it("reads hit counts wherever they sit in the box, and counts a repeat once", () => {
+    const shape = m => ({ hits: m.hitRows.length, total: m.logging.hitTotal,
+                          rows: m.logging.rows.map(r => r.hits) });
+    const after  = shape(W.__parseConfig(LOG_POLICIES + "\n" + HITS));
+    const before = shape(W.__parseConfig("user@srx> show security policies hit-count\n" + HITS + "\n" + LOG_POLICIES));
+    const twice  = W.__parseConfig(LOG_POLICIES + "\n" + HITS + "\n" + HITS);
+    eq(before, after);
+    eq(shape(twice), after, "pasting it twice must not double the counts");
+    eq(twice.opDuplicates.hits, 3);
+  });
+});
+
+describe("junos-config-report / logging DOM", () => {
+  it("renders the logging view from the sample", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewLogging").click();
+    eq(t.errors, []);
+    eq(t.$("viewLogging").getAttribute("aria-pressed"), "true");
+    const txt = t.text("cards");
+    includes(txt, "Session logs");
+    includes(txt, "Security log streams");
+    includes(txt, "System syslog");
+    includes(txt, "What each policy logs");
+    includes(txt, "10.1.0.50:514");
+    includes(txt, "via reth0.0");
+    includes(txt, "management port");
+    includes(txt, "48211");
+    includes(t.doc.querySelector("#ckHits .found").textContent, "5 policies");
+    includes(t.text("srcline"), "policies hit-count");
+  });
+
+  it("puts logging on the overview and goes there on click", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    includes(t.text("ov"), "Security log mode");
+    t.doc.querySelector('.ov-card[data-view="logging"]').click();
+    eq(t.$("viewLogging").getAttribute("aria-pressed"), "true");
+  });
+
+  it("filters destinations and policies together", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewLogging").click();
+    t.$("filter").value = "deny-all";
+    t.$("filter").dispatchEvent(new t.window.Event("input"));
+    const rows = t.doc.querySelectorAll("#cards tbody tr");
+    ok(rows.length >= 1);
+    includes(t.text("cards"), "deny-all");
+    excludes(t.text("cards"), "allow-web");
+  });
+
+  it("narrows to problems", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewLogging").click();
+    t.$("problemsOnly").click();
+    excludes(t.text("cards"), "siem", "the healthy stream is hidden");
+    includes(t.text("cards"), "noc-collector");
+  });
+
+  it("exports the logging view", () => {
+    const t = load("junos-config-report.html");
+    t.$("sampleBtn").click();
+    t.$("viewLogging").click();
+    const got = [];
+    t.window.HTMLAnchorElement.prototype.click = function(){ got.push({ name:this.download, href:this.href }); };
+    t.$("csvBtn").click();
+    eq(got[0].name, "edge-srx-01-logging.csv");
+    const csv = decodeURIComponent(got[0].href.split(",").slice(1).join(","));
+    includes(csv.split("\n")[0], '"Session init","Session close","Hits"');
+    includes(csv, '"deny-all","deny","no","yes","48211"');
+
+    let md = "";
+    Object.defineProperty(t.window.navigator, "clipboard", { configurable:true,
+      value:{ writeText: s => { md = s; return Promise.resolve(); } } });
+    t.$("mdBtn").click();
+    includes(md, "Security log mode: stream");
+    includes(md, "| stream | 10.1.0.50:514 (siem) |");
+    includes(md, "| 1 | untrust | trust | deny-all | deny | no | yes | 48211 |");
+    eq(t.errors, []);
+  });
+
+  it("builds a report from logging config alone", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = LOG_SET;
+    t.$("parseBtn").click();
+    ok(!t.$("msg").classList.contains("on"), "logging config on its own is still a report");
+    t.$("viewLogging").click();
+    includes(t.text("cards"), "siem");
+  });
+
+
+  it("escapes names taken from the paste", () => {
+    const t = load("junos-config-report.html");
+    t.$("raw").value = `set security log stream "<img src=x onerror=alert(1)>" host 10.1.0.50`;
+    t.$("parseBtn").click();
+    t.$("viewLogging").click();
+    eq(t.doc.querySelectorAll("#cards img").length, 0);
+  });
+});
+
 /* ------------------------------------------------------------------ report -- */
 
-if(failures.length){
-  console.log("");
-  failures.forEach(f => {
-    console.log(`FAIL  ${f.group} :: ${f.name}`);
-    console.log(`      ${f.err.message.split("\n").join("\n      ")}`);
-  });
-  console.log(`\n${passed} passed, ${failures.length} failed\n`);
-  process.exit(1);
-}
-console.log(`\n${passed} passed\n`);
+Promise.all(pending).then(() => {
+  if(failures.length){
+    console.log("");
+    failures.forEach(f => {
+      console.log(`FAIL  ${f.group} :: ${f.name}`);
+      console.log(`      ${f.err.message.split("\n").join("\n      ")}`);
+    });
+    console.log(`\n${passed} passed, ${failures.length} failed\n`);
+    process.exit(1);
+  }
+  console.log(`\n${passed} passed\n`);
+});
